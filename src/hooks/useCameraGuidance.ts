@@ -14,6 +14,7 @@ import { digitalZoomFactor } from '../lib/cameraGeometry';
 import { GUIDANCE_SETTLE_MS } from '../constants/guidance';
 import { SYSTEM_CAMERA_CAPABILITIES } from '../constants/cameraCapabilities';
 import { applyCameraTuning, needsCameraTuning, readCameraCapabilities, resetCameraTuning, styleTuning, validateCameraTuning } from '../lib/cameraTuning';
+import { applyStyleFilterToPhoto } from '../plugin/builtin';
 import type { CameraCapabilities, CameraMode, CameraStyle, Guidance, GuidanceConfig, GuidanceContext, GuidanceResult, GuidanceStatus, WhiteBalance } from '../types/guidance';
 
 type AppliedTuning = { aperture: number | null; whiteBalance: WhiteBalance | 'keep'; contrast: number | null };
@@ -445,7 +446,11 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
         if (!mounted.current || !activeRef.current) { await removeSampleFile(picture.uri); return; }
         const uri = await prepareCapturedPhoto(picture, zoom, aspect);
         if (!mounted.current || !activeRef.current) { await removeSampleFile(uri); return; }
-        onCapture(uri);
+        // Apply the active style's LUT in the JS canvas backend (Web). Native
+        // falls through unchanged until the GPU backend lands. Fails open.
+        const filtered = await applyStyleFilterToPhoto(uri, contextRef.current.style);
+        if (!mounted.current || !activeRef.current) { await removeSampleFile(filtered); return; }
+        onCapture(filtered);
       });
     } catch { if (mounted.current) setStatus({ phase: 'error', message: '拍摄失败，请稍后重试。' }); }
     finally {

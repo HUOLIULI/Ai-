@@ -1,8 +1,10 @@
 import type { PluginRegistry } from '../registry';
+import { pluginRegistry } from '../registry';
 import { MODE_PLUGINS } from './modes';
 import { STYLE_PLUGINS } from './styles';
 import { LUTS } from './lut';
 import { styleFilter, jsFilterBackend } from './filters';
+import { canvasFilterBackend } from './canvasBackend';
 import { sceneChangeDetector } from './detectors/sceneChange';
 import { lightingDetector } from './detectors/lighting';
 import { faceBoxDetector } from './detectors/faceBox';
@@ -27,5 +29,19 @@ export function registerBuiltinPlugins(registry: PluginRegistry): void {
   });
 }
 
-export { jsFilterBackend };
+export { jsFilterBackend, canvasFilterBackend };
+
+// Applies the active style's LUT filter to a captured photo uri. Looks the
+// filter up from the registry so a third-party override wins. Fails open:
+// if the filter or backend is unavailable the original uri is returned, so
+// capture never blocks on the filter.
+export async function applyStyleFilterToPhoto(uri: string, style: CameraStyle): Promise<string> {
+  const filter = pluginRegistry.filter(`filter-${style}`);
+  if (!filter) return uri;
+  try {
+    return await filter.apply(canvasFilterBackend, uri);
+  } catch {
+    return uri;
+  }
+}
 
