@@ -11,6 +11,7 @@ import { analyzeWhiteBalance, applyWbCorrectionToPhoto } from '../../lib/wbCorre
 import { getSceneAdvice, applySceneAdviceToPhoto, type SceneAdvice } from '../../lib/sceneAdvice';
 import { planAutoEnhance, applyAutoEnhanceToPhoto } from '../../lib/autoEnhance';
 import { scorePhoto, DIMENSION_LABELS, SCORE_DIMENSIONS, type PhotoScore } from '../../lib/photoScore';
+import { suggestCrop, getImageSize, cropBoxToRect, applyCropToPhoto, type CropSuggestion } from '../../lib/photoCrop';
 import { loadDevicePhotos } from '../../lib/media';
 import type { AlbumItem } from '../../lib/album';
 import { toDataUrl } from '../../lib/photoDataUrl';
@@ -51,6 +52,9 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
   const [score, setScore] = useState<PhotoScore | null>(null);
   const [scoreLoading, setScoreLoading] = useState(false);
   const [scoreError, setScoreError] = useState<string | null>(null);
+  const [crop, setCrop] = useState<CropSuggestion | null>(null);
+  const [cropping, setCropping] = useState(false);
+  const [cropError, setCropError] = useState<string | null>(null);
   const [enhancing, setEnhancing] = useState(false);
   const [enhanceError, setEnhanceError] = useState<string | null>(null);
   const [strength, setStrength] = useState(1);
@@ -62,7 +66,7 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
     });
     return () => { cancelled = true; };
   }, [uri]);
-  useEffect(() => { setEditedUri(null); setEditError(null); setMatchError(null); setCorrectError(null); setAdvice(null); setAdviceError(null); setEnhanceError(null); setRefUri(null); setScore(null); setScoreError(null); }, [uri]);
+  useEffect(() => { setEditedUri(null); setEditError(null); setMatchError(null); setCorrectError(null); setAdvice(null); setAdviceError(null); setEnhanceError(null); setRefUri(null); setScore(null); setScoreError(null); setCrop(null); setCropError(null); }, [uri]);
 
   // Applies a natural-language instruction to the photo: the vision model
   // returns a grade + look parameter set, compiled to a LUT and applied. Fails
@@ -192,6 +196,29 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
       setScoreError('未能生成评分，请检查 AI 配置或稍后再试。');
     } finally {
       setScoreLoading(false);
+    }
+  }
+
+  // AI smart crop: the vision model proposes a normalized crop box that
+  // tightens the composition; we compile it to a pixel rect and crop the
+  // preview. Fails open — the original photo is kept and a message explains.
+  async function applyCrop() {
+    if (cropping) return;
+    setCropping(true); setCropError(null);
+    try {
+      const config = await getActiveAIConfig();
+      const dataUrl = await toDataUrl(displayUri);
+      const suggestion = await suggestCrop(config, dataUrl, new AbortController().signal);
+      setCrop(suggestion);
+      const { width, height } = await getImageSize(displayUri);
+      const rect = cropBoxToRect(suggestion.box, width, height);
+      const out = await applyCropToPhoto(displayUri, rect);
+      setEditedUri(out);
+      setCrop(null); // consumed: the preview now shows the cropped result
+    } catch {
+      setCropError('未能完成裁剪，请检查 AI 配置或稍后再试。');
+    } finally {
+      setCropping(false);
     }
   }
 
@@ -446,6 +473,24 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
               </View>
             ) : null}
             {scoreError ? <Text style={styles.editError}>{scoreError}</Text> : null}
+
+            {/* AI 智能裁剪：模型给裁剪框收紧构图，一键重构图预览 */}
+            <View style={styles.matchRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="AI 智能裁剪"
+                onPress={() => void applyCrop()}
+                disabled={cropping}
+                style={({ pressed }) => [styles.matchToggle, pressed && styles.matchPressed, cropping && styles.matchDisabled]}
+              >
+                <Ionicons name="crop-outline" size={13} color={colors.ink} />
+                <Text style={styles.matchToggleText}>{cropping ? '裁剪中' : 'AI 智能裁剪'}</Text>
+              </Pressable>
+            </View>
+            {crop ? (
+              <Text style={styles.adviceNote}>{crop.rationale}</Text>
+            ) : null}
+            {cropError ? <Text style={styles.editError}>{cropError}</Text> : null}
 
             {/* 强度：把 AI 增强效果向中性回调，避免过度处理 */}
             <View style={styles.strengthRow}>
