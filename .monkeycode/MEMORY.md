@@ -78,7 +78,7 @@
 
 [Album loads the device's real photo library]
 - Date: 2026-11-23
-- Context: Fixed the gap where the album tab was titled "all photos" but only listed this session's captures (vanished on restart)
+- Context: Fixed the gap where the album tab was titled "all photos" but only listed photos this app itself captured/saved, never the device's broader existing library. (Note: savedUris/favoriteUris ARE persisted via captureStore partialize, so they survive restart; only the in-progress capturedUri is session-only. The real gap was the missing device library, not restart loss.)
 - Category: Operations & Deployment
 - Instructions:
   - `loadDevicePhotos` (`src/lib/media.ts`) reads the 60 newest device photos via `expo-media-library` `getAssetsAsync` (`SortBy.creationTime`, `MediaType.photo`). `expo-media-library` was already a dependency + registered in `app.json`. Requests read permission on first use; fails open to `[]` on denial/error/web (web has no device library), so session captures always render.
