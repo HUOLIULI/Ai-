@@ -21,7 +21,7 @@ describe('lutFilter GPU branch integration', () => {
     const lut = { name: 'ai-grade', matrix: [1, 0, 0, 0, 1, 0, 0, 0, 1], temperature: 5 };
     const out = await applyLutSpecToPhoto('input-uri', lut, nativeFilterBackend);
     expect(out).toBe('native-uri');
-    expect(nativeApply).toHaveBeenCalledWith('input-uri', lut.matrix, [], 5, 0);
+    expect(nativeApply).toHaveBeenCalledWith('input-uri', lut.matrix, [], 5, 0, 0);
   });
 
   it('keeps the original uri when the gpu backend is unavailable', async () => {

@@ -1,13 +1,23 @@
 import type { LutSpec } from '../types';
 
-// Pure LUT pixel math, no DOM or native deps. Shared by the Web canvas backend
-// and any future native base64 reader.
+// Radial vignette falloff. nx/ny are the pixel's normalized offset from the
+// image center (-1..1 on each axis); amount is the vignette strength 0..1.
+// Returns the multiplicative brightness factor: 1 at the center (unchanged),
+// dipping toward (1 - amount) at the corners. amount<=0 always returns 1 so a
+// disabled vignette is a true no-op.
+export function vignetteFactor(nx: number, ny: number, amount: number): number {
+  if (!(amount > 0)) return 1;
+  const dist = Math.min(1, Math.sqrt(nx * nx + ny * ny) / Math.SQRT2);
+  return 1 - amount * dist * dist;
+}
+
 export function applyLutToImageData(frame: ImageData, lut: LutSpec): ImageData {
   const out = new Uint8ClampedArray(frame.data.length);
   const m = lut.matrix;
   const curve = lut.curve;
   const temperature = lut.temperature ?? 0;
   const grain = lut.grain ?? 0;
+  const vignette = lut.vignette ?? 0;
 
   for (let i = 0; i < frame.data.length; i += 4) {
     const r = frame.data[i];
@@ -42,6 +52,19 @@ export function applyLutToImageData(frame: ImageData, lut: LutSpec): ImageData {
       nr += (noise - 0.5) * amount;
       ng += (noise - 0.5) * amount;
       nb += (noise - 0.5) * amount;
+    }
+
+    // Vignette: multiplicative radial falloff toward the corners, applied to
+    // all three channels equally so the hue is preserved while edges darken.
+    if (vignette > 0) {
+      const px = (i / 4) % frame.width;
+      const py = Math.floor((i / 4) / frame.width);
+      const nx = frame.width > 1 ? (px / (frame.width - 1)) * 2 - 1 : 0;
+      const ny = frame.height > 1 ? (py / (frame.height - 1)) * 2 - 1 : 0;
+      const factor = vignetteFactor(nx, ny, vignette);
+      nr *= factor;
+      ng *= factor;
+      nb *= factor;
     }
 
     out[i] = nr;

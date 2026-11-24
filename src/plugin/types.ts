@@ -10,6 +10,8 @@ export type LutSpec = {
   temperature?: number;
   // Film grain amount 0-1.
   grain?: number;
+  // Vignette strength 0-1: radial darkening toward the corners.
+  vignette?: number;
 };
 
 export type ModePlugin = {

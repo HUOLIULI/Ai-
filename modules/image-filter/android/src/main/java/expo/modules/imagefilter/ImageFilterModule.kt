@@ -10,7 +10,13 @@ import expo.modules.kotlin.modules.ModuleDefinition
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.math.floor
+import kotlin.math.min
 import kotlin.math.sin
+import kotlin.math.sqrt
+
+// Matches Math.SQRT2 in lutMath.ts so the vignette falloff is identical across
+// the Web canvas and native bitmap backends.
+private const val SQRT2 = 1.4142135623730951
 
 // Applies the same LUT pixel math as the Web canvas backend (lutMath.ts) to a
 // bitmap on device, so the AI color grade / beauty / NL-edit enhancements and
@@ -21,10 +27,10 @@ import kotlin.math.sin
 class ImageFilterModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("ImageFilter")
-    AsyncFunction("apply") { uri: String, matrix: List<Double>, curve: List<Double>, temperature: Double, grain: Double, promise: Promise ->
+    AsyncFunction("apply") { uri: String, matrix: List<Double>, curve: List<Double>, temperature: Double, grain: Double, vignette: Double, promise: Promise ->
       try {
         val context = appContext.reactContext ?: throw IllegalStateException("no react context")
-        val out = applyLut(context, uri, matrix, curve, temperature, grain)
+        val out = applyLut(context, uri, matrix, curve, temperature, grain, vignette)
         promise.resolve(out)
       } catch (e: Exception) {
         promise.resolve(uri)
@@ -38,7 +44,8 @@ class ImageFilterModule : Module() {
     matrix: List<Double>,
     curve: List<Double>,
     temperature: Double,
-    grain: Double
+    grain: Double,
+    vignette: Double
   ): String {
     val source = decodeBitmap(context, uri) ?: return uri
     val width = source.width
@@ -51,6 +58,8 @@ class ImageFilterModule : Module() {
     val hasCurve = curve.size >= 4
     val grainAmount = grain * 40.0
     val hasGrain = grain > 0.0
+    val vignetteAmount = if (vignette > 0.0) vignette else 0.0
+    val hasVignette = vignetteAmount > 0.0
 
     for (i in pixels.indices) {
       val p = pixels[i]
@@ -81,6 +90,21 @@ class ImageFilterModule : Module() {
         nr += amount
         ng += amount
         nb += amount
+      }
+
+      if (hasVignette) {
+        // Same radial falloff as vignetteFactor in lutMath.ts: 1 at the center,
+        // dipping toward (1 - vignette) at the corners, applied multiplicatively
+        // to all three channels so the hue is preserved while edges darken.
+        val px = i % width
+        val py = i / width
+        val nx = if (width > 1) (px.toDouble() / (width - 1)) * 2.0 - 1.0 else 0.0
+        val ny = if (height > 1) (py.toDouble() / (height - 1)) * 2.0 - 1.0 else 0.0
+        val dist = min(1.0, sqrt(nx * nx + ny * ny) / SQRT2)
+        val factor = 1.0 - vignetteAmount * dist * dist
+        nr *= factor
+        ng *= factor
+        nb *= factor
       }
 
       pixels[i] = (a shl 24) or

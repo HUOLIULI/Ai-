@@ -18,6 +18,8 @@ import { toDataUrl } from '../../lib/photoDataUrl';
 import { scaleColorGrade, scaleBeauty } from '../../lib/intensity';
 import { getActiveAIConfig } from '../../lib/aiConfig';
 import { defaultFilterBackend } from '../../plugin/builtin';
+import { applyLutSpecToPhoto } from '../../plugin/builtin/filters';
+import { withFilmTexture } from '../../lib/filmTexture';
 import { IconButton } from '../ui/IconButton';
 import { PrimaryButton } from '../ui/PrimaryButton';
 
@@ -29,6 +31,22 @@ const STRENGTH_LEVELS = [
   { label: '轻', value: 0.5 },
   { label: '适中', value: 0.75 },
   { label: '足量', value: 1 },
+] as const;
+
+// Film texture presets as segmented levels (no new slider dependency). Each is
+// a 0..1 amount fed straight into the LUT grain/vignette fields.
+const GRAIN_LEVELS = [
+  { label: '无', value: 0 },
+  { label: '轻', value: 0.15 },
+  { label: '中', value: 0.3 },
+  { label: '重', value: 0.5 },
+] as const;
+
+const VIGNETTE_LEVELS = [
+  { label: '无', value: 0 },
+  { label: '轻', value: 0.2 },
+  { label: '中', value: 0.35 },
+  { label: '重', value: 0.55 },
 ] as const;
 
 export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
@@ -52,6 +70,9 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
   const [score, setScore] = useState<PhotoScore | null>(null);
   const [scoreLoading, setScoreLoading] = useState(false);
   const [scoreError, setScoreError] = useState<string | null>(null);
+  const [grain, setGrain] = useState(0);
+  const [vignette, setVignette] = useState(0);
+  const [busyTexture, setBusyTexture] = useState(false);
   const [crop, setCrop] = useState<CropSuggestion | null>(null);
   const [cropping, setCropping] = useState(false);
   const [cropError, setCropError] = useState<string | null>(null);
@@ -219,6 +240,25 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
       setCropError('未能完成裁剪，请检查 AI 配置或稍后再试。');
     } finally {
       setCropping(false);
+    }
+  }
+
+  // Film texture: overlays grain + vignette onto the photo. Applies from the
+  // original capture with an identity colour matrix so re-rendering as the
+  // sliders move never compounds JPEG loss. Fails open — the preview is kept.
+  async function applyTexture(nextGrain: number, nextVignette: number) {
+    setBusyTexture(true);
+    try {
+      const texture = withFilmTexture(
+        { name: 'film-texture', matrix: [1, 0, 0, 0, 1, 0, 0, 0, 1] },
+        { grain: nextGrain, vignette: nextVignette }
+      );
+      const out = await applyLutSpecToPhoto(uri, texture, defaultFilterBackend());
+      setEditedUri(out);
+    } catch {
+      // Texture is a cosmetic overlay; keep the current preview on any failure.
+    } finally {
+      setBusyTexture(false);
     }
   }
 
@@ -491,6 +531,60 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
               <Text style={styles.adviceNote}>{crop.rationale}</Text>
             ) : null}
             {cropError ? <Text style={styles.editError}>{cropError}</Text> : null}
+
+            {/* 胶片质感：颗粒 + 暗角，纯像素叠加，独立于调色层 */}
+            <View style={styles.strengthRow}>
+              <Text style={styles.strengthLabel}>颗粒</Text>
+              <View style={styles.strengthSegments}>
+                {GRAIN_LEVELS.map((level) => {
+                  const active = grain === level.value;
+                  return (
+                    <Pressable
+                      key={level.label}
+                      accessibilityRole="button"
+                      accessibilityLabel={`颗粒${level.label}`}
+                      accessibilityState={{ selected: active }}
+                      onPress={() => { setGrain(level.value); void applyTexture(level.value, vignette); }}
+                      disabled={busyTexture}
+                      style={({ pressed }) => [
+                        styles.strengthSegment,
+                        (active || pressed) && styles.strengthSegmentActive,
+                      ]}
+                    >
+                      <Text style={[styles.strengthSegmentText, active && styles.strengthSegmentTextActive]}>
+                        {level.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+            <View style={styles.strengthRow}>
+              <Text style={styles.strengthLabel}>暗角</Text>
+              <View style={styles.strengthSegments}>
+                {VIGNETTE_LEVELS.map((level) => {
+                  const active = vignette === level.value;
+                  return (
+                    <Pressable
+                      key={level.label}
+                      accessibilityRole="button"
+                      accessibilityLabel={`暗角${level.label}`}
+                      accessibilityState={{ selected: active }}
+                      onPress={() => { setVignette(level.value); void applyTexture(grain, level.value); }}
+                      disabled={busyTexture}
+                      style={({ pressed }) => [
+                        styles.strengthSegment,
+                        (active || pressed) && styles.strengthSegmentActive,
+                      ]}
+                    >
+                      <Text style={[styles.strengthSegmentText, active && styles.strengthSegmentTextActive]}>
+                        {level.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
 
             {/* 强度：把 AI 增强效果向中性回调，避免过度处理 */}
             <View style={styles.strengthRow}>

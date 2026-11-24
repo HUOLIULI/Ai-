@@ -10,7 +10,7 @@ import type { LutSpec } from '../types';
 // resolved lazily on each call so a late-registered native module is picked
 // up and tests can swap it.
 type NativeFilterModule = {
-  apply(uri: string, matrix: number[], curve: number[], temperature: number, grain: number): Promise<string>;
+  apply(uri: string, matrix: number[], curve: number[], temperature: number, grain: number, vignette: number): Promise<string>;
 };
 
 function resolveNative(): NativeFilterModule | null {
@@ -44,7 +44,8 @@ export async function applyLutToImageUri(uri: string, lut: LutSpec): Promise<str
       lut.matrix,
       flattenCurve(lut.curve),
       lut.temperature ?? 0,
-      lut.grain ?? 0
+      lut.grain ?? 0,
+      lut.vignette ?? 0
     );
   } catch {
     return uri;

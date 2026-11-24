@@ -198,10 +198,11 @@ On top of composition guidance, Drama applies a set of optional, online AI passe
 | **One-Tap Auto-Enhance** | The flagship "just make it good" action: runs scene style and corrective white-balance/exposure in parallel and applies both in one tap, scaled by the strength control. | Photo review screen, "Auto-Enhance" |
 | **AI Photo Score** | Grade a finished shot the moment it's taken: five dimension scores (composition / lighting / color / sharpness / aesthetics) plus a one-line summary and tips to judge which shot to keep. | Photo review screen, "Photo Score" |
 | **AI Smart Crop** | The model analyses the composition and suggests a crop, reframing an off-composition shot in one tap to rescue old photos. | Photo review screen, "Smart Crop" |
+| **Film Texture** | Overlays grain + vignette for a filmic feel (multiple adjustable levels, independent of the color grade), applied straight onto the photo — pure pixel work, no model needed. | Photo review screen, "Grain / Vignette" |
 
 ### How it works
 
-Every enhancement follows one pattern: the vision model returns a handful of **bounded numeric parameters** (constrained by a JSON schema), and a pure compiler maps those onto a `LutSpec` (color matrix + tone curve + temperature) that a shared LUT engine applies pixel-by-pixel. This keeps each pass testable and consistent with the built-in style filters. The review screen also exposes a **strength** control (Light / Medium / Full) that scales the model's result back toward neutral to avoid over-processing.
+Every enhancement follows one pattern: the vision model returns a handful of **bounded numeric parameters** (constrained by a JSON schema), and a pure compiler maps those onto a `LutSpec` (color matrix + tone curve + temperature) that a shared LUT engine applies pixel-by-pixel. This keeps each pass testable and consistent with the built-in style filters. The review screen also exposes a **strength** control (Light / Medium / Full) that scales the model's result back toward neutral to avoid over-processing. Film texture (grain / vignette) extends the same pipeline — the vignette darkens brightness multiplicatively by a normalized radial distance while preserving hue, also applied per pixel.
 
 The LUT renders through a platform-adaptive backend: a native Android bitmap module (`modules/image-filter`) on Android, and an HTML canvas backend on the web. Where no backend exists the photo passes through unchanged.
 

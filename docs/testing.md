@@ -114,9 +114,9 @@ npx tsc --noEmit
 
 ### LUT 滤镜引擎
 
-- `applyLutToImageData`（在 `src/plugin/builtin/lutMath.ts`）：像素级 RGBA LUT（3×3 矩阵 + 曲线 + 色温 + 颗粒），纯函数可单测，被 canvas 后端和原生 bitmap 后端共用。
+- `applyLutToImageData`（在 `src/plugin/builtin/lutMath.ts`）：像素级 RGBA LUT（3×3 矩阵 + 曲线 + 色温 + 颗粒 + 暗角），纯函数可单测，被 canvas 后端和原生 bitmap 后端共用。暗角经纯函数 `vignetteFactor`（中心=1、四角最暗、`amount<=0` 恒 1）按位置乘性衰减亮度，保色相。
 - `canvasFilterBackend` + `applyLutToImageUri`（`canvasBackend.ts`）：Web 端把成片加载进 canvas、逐像素套 LUT、写回 JPEG data URL。无 canvas 环境安全透传原图。
-- `nativeFilterBackend` + `applyLutToImageUri`（`nativeBackend.ts`）+ `modules/image-filter`（Android Kotlin Expo 模块）：原生端把成片解码成 Bitmap、逐像素套与 `lutMath.ts` 对齐的同一套数学（matrix→temperature→curve→grain→clamp）、写 JPEG 到 cache 返回 `file://` uri；curve 展平成 `[x0,y0,x1,y1,...]` 过桥。原生模块缺失（Expo Go/iOS）或处理失败时 fail-open 透传原图。惰性解析原生模块，晚注册也能拿到。
+- `nativeFilterBackend` + `applyLutToImageUri`（`nativeBackend.ts`）+ `modules/image-filter`（Android Kotlin Expo 模块）：原生端把成片解码成 Bitmap、逐像素套与 `lutMath.ts` 对齐的同一套数学（matrix→temperature→curve→grain→vignette→clamp）、写 JPEG 到 cache 返回 `file://` uri；curve 展平成 `[x0,y0,x1,y1,...]` 过桥。原生模块缺失（Expo Go/iOS）或处理失败时 fail-open 透传原图。惰性解析原生模块，晚注册也能拿到。
 - `defaultFilterBackend`（`defaultBackend.ts`）：平台自适应选择器——Android→native bitmap、web/iOS→canvas。`applyLutSpecToPhoto`、`applyStyleFilterToPhoto`、回顾页 NL 修图都经它渲染，原生端真正出图，无后端时保留原图。调用方仍可显式传后端覆盖。
 - fail-open：滤镜加载或处理失败一律返回原图 uri，绝不阻塞拍照；`applyStyleFilterToPhoto` 从 registry 取滤镜，第三方同 id 覆盖生效。
 - `styleFilter()` / `jsFilterBackend`：JS 后端入口，统一 `FilterBackend` 接口；原生走 gpu 类型。
@@ -138,3 +138,4 @@ npx tsc --noEmit
 
 - 滤镜引擎像素后端已接入 Web canvas（`canvasFilterBackend`）与 Android 原生 bitmap（`modules/image-filter` + `nativeFilterBackend`，经平台自适应 `defaultFilterBackend`）；成片需真机比对八套风格 + AI 调色/美颜的色偏、对比、颗粒强度，并确认原生 `ImageFilter` 模块在 APK 中链接、`requireOptionalNativeModule('ImageFilter')` 拿得到（Expo Go 不支持，需重新构建 Android 开发包或 APK）。
 - `modules/image-filter` Android bitmap 后端、`plugins/expo-drama` 对外插件、MLKit 真机人脸框精度，均需 Android SDK 编译与真机验证。
+- 胶片质感（颗粒/暗角）已接入双后端：Web canvas 走 `lutMath`，Android 原生在 Kotlin `ImageFilterModule` 复制同一径向暗角公式（`vignetteFactor`）。需真机确认原生端暗角边缘变暗方向与力度和 canvas 一致、颗粒在暗角叠加时不脏，且回顾页颗粒/暗角档位切换能重渲染预览。

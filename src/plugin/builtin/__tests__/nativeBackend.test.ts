@@ -49,7 +49,8 @@ describe('nativeFilterBackend', () => {
       [1, 0, 0, 0, 1, 0, 0, 0, 1],
       [0, 0, 0.5, 0.6, 1, 1],
       10,
-      0.2
+      0.2,
+      0
     );
   });
 
@@ -60,6 +61,7 @@ describe('nativeFilterBackend', () => {
       'photo-uri',
       [1, 0, 0, 0, 1, 0, 0, 0, 1],
       [],
+      0,
       0,
       0
     );
