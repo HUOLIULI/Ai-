@@ -72,7 +72,7 @@ npx tsc --noEmit
 - **离线快门决策器**（`src/lib/shutterDecision.ts`）：按下快门那一刻，用端侧信号（gyro 抖动 + 采样帧 lighting 检测）本地确定性算出白平衡/风格/曝光提示/手稳提示。纯函数 `decideShutter`，接进 `useCameraGuidance`，快门时冻结决策，`ShutterDecisionCard` 在快门区上方展示。即使没开 AI 指导也生效。
 - **决策自动落地（自动出片）**：`autoStyle` 开启时，决策建议的风格经 `changeStyle(style, true)` 自动应用（连带 `styleTuning` 落白平衡/对比度），实现完整的"点一下就出片"。风格条首位有"自动"档；手动点具体风格会关掉 autoStyle 把控制权还给用户。刷新回调经 ref 稳定身份，避免 effect 每渲染重跑。
 - **暗光自动补光**：`autoFlash` 开启时，决策判暗光且后置摄像头自动开闪光（前置无闪光，按 facing 守卫）。手动切闪光会关掉 autoFlash；快门决策卡上方有"自动补光"chip 显示状态、可在手动覆盖后重新开启。
-- **防抖快门（等手稳再拍）**：模糊是随手拍头号废片原因。快门触发时若冻结决策判 shaky，`capture()` 经 `waitForStability` 轮询陀螺仪抖动值、等手稳（`isShakeStable`，阈值 `STABLE_SHAKE=0.4`）再拍，上限 `STABILITY_WAIT_MS=1200ms`——读数未知/无效不阻塞、手一直晃到点也照拍，绝不卡死快门。抖动值在陀螺仪监听里无条件更新，所以关掉 AI 指导时防抖仍生效。
+- **防抖快门（等手稳再拍）**：模糊是随手拍头号废片原因。快门触发时若实时陀螺仪抖动值超阈（`!isShakeStable(shakeRef.current)`，阈值 `STABLE_SHAKE=0.4`），`capture()` 经 `waitForStability` 轮询、等手稳再拍，上限 `STABILITY_WAIT_MS=1200ms`——读数未知/无效不阻塞、手一直晃到点也照拍，绝不卡死快门。门读实时抖动而非冻结决策（决策要等下次 render 才进闭包），且抖动值无条件更新，关掉 AI 指导时防抖仍生效。
 - **成片质量守护**（`src/lib/photoQuality.ts` + `photoQualityGuard.ts`）：拍完立刻对成片跑模糊（相邻像素梯度）/曝光（亮度+高光）/闭眼检测，明显废片在回顾页提示重拍。纯函数 `assessQuality`，采集侧 `analyzePhotoQuality`（Web canvas 解码），原生/canvas 缺失时降级为不提示、绝不阻塞保存。`PhotoReview` 挂载时跑并显示重拍横幅。
 
 验收：`decideShutter` / `assessQuality` / `computeQualityStats` / `eyeStateFromProbabilities` 纯函数单测覆盖暗光/过曝/正常/人像/手抖/闭眼/信号缺失各分支；真机需标定阈值（`DARK_MEAN`、`BRIGHT_HIGHLIGHTS`、`BLUR_SHARPNESS`、`SHAKY_SHAKE`、`EYE_OPEN_THRESHOLD`）。闭眼采集端已接：`eyeStateFromProbabilities` 从 MLKit 双眼开合概率判定（任一开即视为开，缺概率安全降级），Android 上 `analyzePhotoQuality` 跑 MLKit 取眼睛状态、Web 上 canvas 出模糊/曝光，平台维度互补、各自 fail-open。注意 MLKit 闭眼概率需 `classificationMode`，`analyzePhotoQuality` 的闭眼路径已懒初始化开启它（幂等，对只读人脸框的 faceBox 无害；若重初始化失败则沿用原配置、闭眼维度安全跳过）。
