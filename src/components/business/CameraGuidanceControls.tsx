@@ -11,6 +11,8 @@ type Props = {
   poseEnabled?: boolean; poseStarting?: boolean; poseWorking?: boolean;
   poseError?: string; poseConfigMissing?: boolean;
   onTogglePose?: () => void;
+  autoColorGrade?: boolean;
+  onToggleColorGrade?: () => void;
 };
 
 export function CameraGuidanceControls(props: Props) {
@@ -32,6 +34,13 @@ export function CameraGuidanceControls(props: Props) {
         <Ionicons name="scan-outline" size={14} color={props.autoZoom ? colors.secondaryFixed : colors.onSurfaceVariant} />
         <Text style={[styles.text, props.autoZoom && styles.textSelected]}>自动变焦{props.autoZoom ? ' 开' : ' 关'}</Text>
       </Pressable>
+      {props.onToggleColorGrade && (
+        <Pressable accessibilityRole="switch" accessibilityLabel="AI 调色" accessibilityState={{ checked: Boolean(props.autoColorGrade) }}
+          disabled={props.disabled} onPress={props.onToggleColorGrade} style={[styles.button, props.autoColorGrade && styles.selected]}>
+          <Ionicons name="color-palette-outline" size={14} color={props.autoColorGrade ? colors.secondaryFixed : colors.onSurfaceVariant} />
+          <Text style={[styles.text, props.autoColorGrade && styles.textSelected]}>AI 调色{props.autoColorGrade ? ' 开' : ' 关'}</Text>
+        </Pressable>
+      )}
       {props.onTogglePose && (
         <Pressable accessibilityRole="switch" accessibilityLabel="姿势指引" accessibilityState={{ checked: Boolean(props.poseEnabled) }}
           disabled={props.disabled || props.poseStarting} onPress={props.onTogglePose} style={[styles.button, props.poseEnabled && styles.selected]}>

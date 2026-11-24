@@ -15,6 +15,9 @@ import { GUIDANCE_SETTLE_MS } from '../constants/guidance';
 import { SYSTEM_CAMERA_CAPABILITIES } from '../constants/cameraCapabilities';
 import { applyCameraTuning, needsCameraTuning, readCameraCapabilities, resetCameraTuning, styleTuning, validateCameraTuning } from '../lib/cameraTuning';
 import { applyStyleFilterToPhoto } from '../plugin/builtin';
+import { applyLutSpecToPhoto } from '../plugin/builtin/filters';
+import { analyzeColorGrade } from '../lib/colorGradeAi';
+import { colorGradeParamsToLut } from '../lib/colorGrade';
 import { pluginRegistry } from '../plugin/registry';
 import { decideShutter, type ShutterDecision, type ShutterSignals } from '../lib/shutterDecision';
 import { waitForStability, isShakeStable, STABILITY_WAIT_MS } from '../lib/captureStability';
@@ -71,6 +74,12 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
   const [autoFlash, setAutoFlash] = useState(true);
   const autoFlashRef = useRef(true);
   const appliedAutoFlashRef = useRef(false);
+  // Auto color grade: when on, a captured photo is sent through the vision
+  // model for a colorist pass and the returned grade is compiled into a LUT and
+  // applied on top of the style filter. Fails open: any error keeps the photo
+  // as-is so capture never blocks on the model.
+  const [autoColorGrade, setAutoColorGrade] = useState(false);
+  const autoColorGradeRef = useRef(false);
   // Stable identity for the refresh callback so effects and the guidance loop
   // can call it without it changing identity across renders.
   const refreshRef = useRef<() => void>(() => {});
@@ -411,6 +420,9 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
     autoFlashRef.current = !autoFlashRef.current; setAutoFlash(autoFlashRef.current);
     if (autoFlashRef.current) appliedAutoFlashRef.current = false;
   }
+  function toggleAutoColorGrade() {
+    autoColorGradeRef.current = !autoColorGradeRef.current; setAutoColorGrade(autoColorGradeRef.current);
+  }
   function manualZoom(value: number) {
     autoRef.current = false; setAutoZoom(false); cancelZoom();
     if (busyRef.current) loop.current?.pause('变焦已改变，请完成调整后重新规划');
@@ -521,15 +533,27 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
             () => !mounted.current || !activeRef.current,
           );
         }
-        const picture = await cameraRef.current?.takePictureAsync({ quality: 0.9, skipProcessing: false });
+        const picture = await cameraRef.current?.takePictureAsync({ quality: 0.9, skipProcessing: false, base64: true });
         if (!picture?.uri) throw new Error('没有获取到照片');
         if (!mounted.current || !activeRef.current) { await removeSampleFile(picture.uri); return; }
         const uri = await prepareCapturedPhoto(picture, zoom, aspect);
         if (!mounted.current || !activeRef.current) { await removeSampleFile(uri); return; }
         // Apply the active style's LUT in the JS canvas backend (Web). Native
         // falls through unchanged until the GPU backend lands. Fails open.
-        const filtered = await applyStyleFilterToPhoto(uri, contextRef.current.style);
+        let filtered = await applyStyleFilterToPhoto(uri, contextRef.current.style);
         if (!mounted.current || !activeRef.current) { await removeSampleFile(filtered); return; }
+        // Optional AI color grade: send the captured frame through the vision
+        // model for a colorist pass, compile the returned grade into a LUT, and
+        // apply it on top of the style filter. Reuses the shutter photo's base64
+        // (no second capture). Fails open on any error.
+        const gradeDataUrl = picture.base64 ? `data:image/jpeg;base64,${picture.base64}` : null;
+        if (autoColorGradeRef.current && config.current && gradeDataUrl) {
+          try {
+            const grade = await analyzeColorGrade(config.current, gradeDataUrl, new AbortController().signal);
+            filtered = await applyLutSpecToPhoto(filtered, colorGradeParamsToLut(grade));
+          } catch { /* keep the un-graded photo */ }
+          if (!mounted.current || !activeRef.current) { await removeSampleFile(filtered); return; }
+        }
         onCapture(filtered);
       });
     } catch { if (mounted.current) setStatus({ phase: 'error', message: '拍摄失败，请稍后重试。' }); }
@@ -577,7 +601,7 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
     // stable in behavior; including it would re-run the effect every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shutterDecision, autoFlash]);
-  return { context, enabled, autoZoom, adjustingZoom, adjustingParameters, ready, active, capturing, sampling, switching, starting, result, target, executionPhase, status, configMissing, sensorAvailable, tuningMessage, appliedTuning, shutterDecision, autoStyle, autoFlash,
-    toggleGuidance, toggleAutoZoom, toggleAutoStyle, toggleAutoFlash, manualZoom, adjustParameters, changeStyle, changeMode, flipCamera, cameraReady, cameraError, capture, confirmAdjustment, sampleFrame, refreshShutterDecision,
+  return { context, enabled, autoZoom, adjustingZoom, adjustingParameters, ready, active, capturing, sampling, switching, starting, result, target, executionPhase, status, configMissing, sensorAvailable, tuningMessage, appliedTuning, shutterDecision, autoStyle, autoFlash, autoColorGrade,
+    toggleGuidance, toggleAutoZoom, toggleAutoStyle, toggleAutoFlash, toggleAutoColorGrade, manualZoom, adjustParameters, changeStyle, changeMode, flipCamera, cameraReady, cameraError, capture, confirmAdjustment, sampleFrame, refreshShutterDecision,
     refresh: () => invalidate('正在重新规划当前画面') };
 }

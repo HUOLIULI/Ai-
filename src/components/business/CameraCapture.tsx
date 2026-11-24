@@ -182,6 +182,8 @@ export function CameraCapture({ cameraRef, onClose, onCapture, onConfigure, onOp
             configMissing={guide.configMissing}
             onToggle={() => void guide.toggleGuidance()}
             onAutoZoom={guide.toggleAutoZoom}
+            autoColorGrade={guide.autoColorGrade}
+            onToggleColorGrade={guide.toggleAutoColorGrade}
             onRefresh={guide.refresh}
             onConfigure={onConfigure}
             poseEnabled={pose.enabled}
