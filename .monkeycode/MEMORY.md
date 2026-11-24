@@ -29,8 +29,8 @@
 - Context: Wired the LUT pixel backend into the capture pipeline
 - Category: Build Methods
 - Instructions:
-  - Pure LUT pixel math lives in `src/plugin/builtin/lutMath.ts` and is shared by the Web canvas backend and any future native base64 reader. This split exists to break a filters<->canvasBackend circular import.
-  - `canvasBackend.ts` is Web-only (`Platform.OS === 'web' && typeof document !== 'undefined'`). Native passes the uri through unchanged until the `modules/image-filter` GPU backend lands.
+  - Pure LUT pixel math lives in `src/plugin/builtin/lutMath.ts` and is shared by the Web canvas backend and the Android native bitmap backend. This split exists to break a filters<->canvasBackend circular import.
+  - `canvasBackend.ts` is Web-only (`Platform.OS === 'web' && typeof document !== 'undefined'`). Android now renders through `nativeFilterBackend` (`nativeBackend.ts`), a lazy gpu backend that bridges a LutSpec to the `modules/image-filter` Expo module (Kotlin decodes a Bitmap, runs the SAME matrix->temperature->curve->grain->clamp math as lutMath.ts, writes a JPEG to cache, returns a `file://` uri; curve is flattened to `[x0,y0,x1,y1,...]` across the bridge). `defaultFilterBackend` (`defaultBackend.ts`) picks native on Android, canvas on web/iOS. Resolve the native module LAZILY inside each call (not once at module load) — jest hoists `jest.mock` + imports above the test body, so a module-load-time capture reads undefined mocks; lazy resolution also picks up late-registered modules.
   - Filter application is fail-open end to end: `applyLutToImageUri` and `applyStyleFilterToPhoto` both return the original uri on any error, so a filter failure never blocks a capture.
   - `applyStyleFilterToPhoto` looks the filter up from `pluginRegistry` by id `filter-${style}`, so a third-party same-id registration overrides the built-in.
 
