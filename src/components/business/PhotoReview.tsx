@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, fonts, shadows } from '../../constants/theme';
 import { analyzePhotoQuality } from '../../lib/photoQualityGuard';
 import { editPhotoFromInstruction, applyNlEditToPhoto } from '../../lib/nlEdit';
+import { analyzeReferenceGrade, applyReferenceGradeToPhoto } from '../../lib/refColorMatch';
+import { loadDevicePhotos } from '../../lib/media';
+import type { AlbumItem } from '../../lib/album';
 import { toDataUrl } from '../../lib/photoDataUrl';
 import { getActiveAIConfig } from '../../lib/aiConfig';
 import { defaultFilterBackend } from '../../plugin/builtin';
@@ -20,6 +23,12 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
   const [editedUri, setEditedUri] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [showRefs, setShowRefs] = useState(false);
+  const [refLoading, setRefLoading] = useState(false);
+  const [refList, setRefList] = useState<AlbumItem[]>([]);
+  const [refUri, setRefUri] = useState<string | null>(null);
+  const [matching, setMatching] = useState(false);
+  const [matchError, setMatchError] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
     setQualityHints([]);
@@ -28,7 +37,7 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
     });
     return () => { cancelled = true; };
   }, [uri]);
-  useEffect(() => { setEditedUri(null); setEditError(null); }, [uri]);
+  useEffect(() => { setEditedUri(null); setEditError(null); setMatchError(null); setRefUri(null); }, [uri]);
 
   // Applies a natural-language instruction to the photo: the vision model
   // returns a grade + look parameter set, compiled to a LUT and applied. Fails
@@ -51,6 +60,44 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
   }
 
   const displayUri = editedUri ?? uri;
+
+  // Loads the device's recent photos so the user can pick a reference whose
+  // color look will be matched onto the current photo. Fails open to an empty
+  // strip; loadDevicePhotos already swallows permission/IO errors on native and
+  // returns [] on web.
+  async function loadRefs() {
+    if (refLoading || refList.length > 0) return;
+    setRefLoading(true);
+    try {
+      const photos = await loadDevicePhotos();
+      setRefList(photos);
+      setShowRefs(photos.length > 0);
+    } finally {
+      setRefLoading(false);
+    }
+  }
+
+  // Reference color match: send the current preview (which may already carry an
+  // NL edit) plus the selected reference as two images, compile the returned
+  // grade to a LUT and apply it on top. Fails open — the preview is kept and a
+  // visible message explains the miss.
+  async function applyMatch() {
+    const reference = refUri;
+    if (!reference || matching) return;
+    setMatching(true); setMatchError(null);
+    try {
+      const config = await getActiveAIConfig();
+      const sourceDataUrl = await toDataUrl(displayUri);
+      const referenceDataUrl = await toDataUrl(reference);
+      const params = await analyzeReferenceGrade(config, sourceDataUrl, referenceDataUrl, new AbortController().signal);
+      const out = await applyReferenceGradeToPhoto(displayUri, params, defaultFilterBackend());
+      setEditedUri(out);
+    } catch {
+      setMatchError('匹配未生效，请检查 AI 配置或换张参考图。');
+    } finally {
+      setMatching(false);
+    }
+  }
 
   return (
     <View style={styles.page}>
@@ -134,6 +181,59 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
               )}
             </View>
             {editError ? <Text style={styles.editError}>{editError}</Text> : null}
+
+            {/* 参考图匹配：选一张参考图复刻其色调 */}
+            <View style={styles.matchRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="选择参考图"
+                onPress={() => void loadRefs()}
+                disabled={refLoading}
+                style={({ pressed }) => [styles.matchToggle, pressed && styles.matchPressed]}
+              >
+                <Ionicons name="images-outline" size={13} color={colors.ink} />
+                <Text style={styles.matchToggleText}>
+                  {refLoading ? '读取相册…' : showRefs ? '选择参考图' : '参考图匹配'}
+                </Text>
+              </Pressable>
+              {refUri ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="应用参考图匹配"
+                  onPress={() => void applyMatch()}
+                  disabled={matching}
+                  style={({ pressed }) => [styles.matchApply, pressed && styles.matchPressed, matching && styles.matchDisabled]}
+                >
+                  <Ionicons name="sparkles-outline" size={13} color={colors.secondaryFixed} />
+                  <Text style={styles.matchApplyText}>{matching ? '匹配中' : '应用匹配'}</Text>
+                </Pressable>
+              ) : null}
+            </View>
+
+            {showRefs ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.refStrip} contentContainerStyle={styles.refStripContent}>
+                {refList.map((item) => {
+                  const selected = refUri === item.uri;
+                  return (
+                    <Pressable
+                      key={item.uri}
+                      accessibilityRole="button"
+                      accessibilityLabel={`选用参考图 ${item.title}`}
+                      onPress={() => setRefUri(item.uri)}
+                      style={[styles.refThumb, selected && styles.refThumbSelected]}
+                    >
+                      <Image source={{ uri: item.uri }} style={styles.refThumbImage} />
+                      {selected ? (
+                        <View style={styles.refThumbCheck}>
+                          <Ionicons name="checkmark" size={11} color={colors.whiteWarm} />
+                        </View>
+                      ) : null}
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            ) : null}
+            {matchError ? <Text style={styles.editError}>{matchError}</Text> : null}
 
             {qualityHints.length > 0 && (
               <View style={styles.qualityBanner}>
@@ -345,6 +445,85 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 16,
     marginTop: 6,
+  },
+  matchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+  },
+  matchToggle: {
+    minHeight: 32,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    borderWidth: 1,
+    borderColor: 'rgba(24, 22, 18, 0.12)',
+  },
+  matchToggleText: {
+    color: colors.ink,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  matchApply: {
+    minHeight: 32,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.primary,
+  },
+  matchPressed: {
+    opacity: 0.85,
+  },
+  matchDisabled: {
+    opacity: 0.6,
+  },
+  matchApplyText: {
+    color: colors.secondaryFixed,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  refStrip: {
+    marginTop: 8,
+    maxHeight: 72,
+  },
+  refStripContent: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingVertical: 2,
+  },
+  refThumb: {
+    width: 60,
+    height: 60,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'transparent',
+    backgroundColor: colors.paleMist,
+  },
+  refThumbSelected: {
+    borderColor: colors.primary,
+  },
+  refThumbImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  refThumbCheck: {
+    position: 'absolute',
+    right: 3,
+    bottom: 3,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   actions: {
     flexDirection: 'row',

@@ -192,6 +192,7 @@ On top of composition guidance, Drama applies a set of optional, online AI passe
 | **AI Color Grade** | A "colorist" pass returns bounded grade parameters (temperature / exposure / contrast / saturation / tint), compiled into a LUT over the photo. | Capture flow, "AI Color" toggle |
 | **AI Beauty** | Softens skin, brightens, and warms portraits via bounded look parameters compiled into a LUT. | Capture flow, "AI Beauty" toggle |
 | **Natural-Language Edit** | Type a one-line instruction (e.g. "make the sky bluer") on the review screen; the model returns grade + beauty parameters that are compiled and applied to the shot. | Photo review screen |
+| **Reference Color Match** | Pick a reference photo from your library; the model analyzes the source and reference together and returns grade parameters that pull the source's color toward the reference. | Photo review screen, "Reference Match" |
 
 ### How it works
 

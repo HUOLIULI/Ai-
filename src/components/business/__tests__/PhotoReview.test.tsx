@@ -15,6 +15,16 @@ jest.mock('../../../lib/nlEdit', () => ({
 }));
 jest.mock('../../../lib/aiConfig', () => ({ getActiveAIConfig: jest.fn(async () => ({ provider: 'dashscope', apiKey: 'k', baseUrl: 'https://x', model: 'm' })) }));
 jest.mock('../../../lib/photoDataUrl', () => ({ toDataUrl: jest.fn(async (uri: string) => uri) }));
+jest.mock('../../../lib/refColorMatch', () => ({
+  analyzeReferenceGrade: jest.fn(async () => ({ temperature: 0.3, exposure: 0, contrast: 0.2, saturation: 0.4, tint: 0 })),
+  applyReferenceGradeToPhoto: jest.fn(async (_uri: string) => 'matched-uri'),
+}));
+jest.mock('../../../lib/media', () => ({
+  loadDevicePhotos: jest.fn(async () => [
+    { uri: 'ref-a', title: '参考A', tag: '设备相册' },
+    { uri: 'ref-b', title: '参考B', tag: '设备相册' },
+  ]),
+}));
 
 describe('PhotoReview natural-language edit', () => {
   it('renders the edit instruction input', () => {
@@ -27,5 +37,29 @@ describe('PhotoReview natural-language edit', () => {
     expect(screen.queryByLabelText('应用修图')).toBeNull();
     fireEvent.changeText(screen.getByPlaceholderText('一句话修图，如：把天空调蓝一点'), '调亮一点');
     expect(screen.getByLabelText('应用修图')).toBeDefined();
+  });
+});
+
+describe('PhotoReview reference color match', () => {
+  it('loads reference thumbnails and applies a match to the selected reference', async () => {
+    render(<PhotoReview uri="photo-uri" onRetake={() => {}} onSave={() => {}} saving={false} />);
+    fireEvent.press(screen.getByLabelText('选择参考图'));
+    const ref = await screen.findByLabelText('选用参考图 参考A');
+    expect(screen.getByLabelText('选用参考图 参考B')).toBeDefined();
+    fireEvent.press(ref);
+    const apply = await screen.findByLabelText('应用参考图匹配');
+    fireEvent.press(apply);
+    expect(await screen.findByLabelText('应用参考图匹配')).toBeDefined();
+  });
+
+  it('keeps the photo unchanged when the match fails', async () => {
+    const { applyReferenceGradeToPhoto } = require('../../../lib/refColorMatch');
+    (applyReferenceGradeToPhoto as jest.Mock).mockRejectedValueOnce(new Error('boom'));
+    render(<PhotoReview uri="photo-uri" onRetake={() => {}} onSave={() => {}} saving={false} />);
+    fireEvent.press(screen.getByLabelText('选择参考图'));
+    const ref = await screen.findByLabelText('选用参考图 参考A');
+    fireEvent.press(ref);
+    fireEvent.press(await screen.findByLabelText('应用参考图匹配'));
+    expect(await screen.findByText('匹配未生效，请检查 AI 配置或换张参考图。')).toBeDefined();
   });
 });
