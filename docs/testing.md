@@ -65,6 +65,17 @@ npx tsc --noEmit
 - 模式与风格插件的 prompt、preset、LUT 数值可被插件覆盖。
 - 第三方可在运行时 `registry.register(plugin)` 增加能力，无需改核心代码。
 
+### 对外分发插件（expo-drama）
+
+`plugins/expo-drama` 是可发布的 Expo config plugin，负责自动链接不覆盖的两项原生配置：
+
+- 合并 `REQUEST_INSTALL_PACKAGES` 权限（app-installer 更新安装所需）。
+- 向 `android/app/build.gradle` 注入 MLKit 人脸检测依赖（faceBox 检测器所需）。
+
+结构：纯函数（`permissions.ts`、`gradle.ts`）+ 薄 mod 接线（`withDramaNative.ts`），`createRunOncePlugin` 包裹保证幂等（重复 prebuild 不重复注入）。camera-tuning 与 app-installer 模块本身由 `expo-module.config.json` 自动链接，插件只补齐权限与依赖。已注册进 `app.json`，`expo config` 解析通过。
+
+验收：`npx expo prebuild --platform android` 后核对生成的 `AndroidManifest.xml` 含 `REQUEST_INSTALL_PACKAGES`、`app/build.gradle` 含 `com.google.mlkit:face-detection`（需 EAS/本地 Android 构建，本环境无法执行）。
+
 ### LUT 滤镜引擎
 
 - `applyLutToImageData`（在 `src/plugin/builtin/lutMath.ts`）：像素级 RGBA LUT（3×3 矩阵 + 曲线 + 色温 + 颗粒），纯函数可单测，被 canvas 后端和未来原生 base64 后端共用。

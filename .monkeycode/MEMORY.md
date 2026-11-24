@@ -50,3 +50,13 @@
   - `parseRelease` (`src/lib/appRelease.ts`) extracts the APK sha256 from the GitHub Release asset `digest` field (format `sha256:<64 hex>`) into `asset.sha256`.
   - APKs must be uploaded as real GitHub Release assets (not just external links) for GitHub to populate `digest`; otherwise `sha256` stays null and native `verifyPackage` skips hash validation.
   - Non-APK assets and malformed digests keep `sha256` null, degrading gracefully to package-name + versionCode checks.
+
+[Expo config plugin distribution]
+- Date: 2026-11-23
+- Context: Built the plugins/expo-drama distribution plugin
+- Category: Build Methods
+- Instructions:
+  - `plugins/expo-drama` is a publishable Expo config plugin handling the two native configs autolinking misses: merging `REQUEST_INSTALL_PACKAGES` (app-installer) and injecting the MLKit face-detection dependency (faceBox).
+  - Structure: pure functions (`permissions.ts`, `gradle.ts`) + thin mod wiring (`withDramaNative.ts`), wrapped in `createRunOncePlugin` for idempotency (repeated prebuild does not double-inject).
+  - The two local native modules link themselves via `expo-module.config.json`; the plugin only fills permissions and dependencies.
+  - `@expo/config-plugins` is a transitive dep (SDK 52, not in package.json). Plugin unit tests run the mod with an identity `nextMod` and assert on the returned `modResults`, reading `result.modResults.*` (nested, not `result.*`).
