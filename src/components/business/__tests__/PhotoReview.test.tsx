@@ -19,6 +19,10 @@ jest.mock('../../../lib/refColorMatch', () => ({
   analyzeReferenceGrade: jest.fn(async () => ({ temperature: 0.3, exposure: 0, contrast: 0.2, saturation: 0.4, tint: 0 })),
   applyReferenceGradeToPhoto: jest.fn(async (_uri: string) => 'matched-uri'),
 }));
+jest.mock('../../../lib/wbCorrection', () => ({
+  analyzeWhiteBalance: jest.fn(async () => ({ cast: '偏暖', exposure: '过曝', severity: 0.6 })),
+  applyWbCorrectionToPhoto: jest.fn(async (_uri: string) => 'corrected-uri'),
+}));
 jest.mock('../../../lib/media', () => ({
   loadDevicePhotos: jest.fn(async () => [
     { uri: 'ref-a', title: '参考A', tag: '设备相册' },
@@ -78,5 +82,21 @@ describe('PhotoReview strength control', () => {
     fireEvent.press(screen.getByLabelText('增强强度轻'));
     expect(screen.getByLabelText('增强强度轻').props.accessibilityState.selected).toBe(true);
     expect(screen.getByLabelText('增强强度足量').props.accessibilityState.selected).toBe(false);
+  });
+});
+
+describe('PhotoReview white-balance correction', () => {
+  it('applies a corrective pass from the 自动校正白平衡 button', async () => {
+    render(<PhotoReview uri="photo-uri" onRetake={() => {}} onSave={() => {}} saving={false} />);
+    fireEvent.press(screen.getByLabelText('自动校正白平衡'));
+    expect(await screen.findByLabelText('自动校正白平衡')).toBeDefined();
+  });
+
+  it('keeps the photo unchanged and shows a message when correction fails', async () => {
+    const { applyWbCorrectionToPhoto } = require('../../../lib/wbCorrection');
+    (applyWbCorrectionToPhoto as jest.Mock).mockRejectedValueOnce(new Error('boom'));
+    render(<PhotoReview uri="photo-uri" onRetake={() => {}} onSave={() => {}} saving={false} />);
+    fireEvent.press(screen.getByLabelText('自动校正白平衡'));
+    expect(await screen.findByText('校正未生效，请检查 AI 配置或稍后再试。')).toBeDefined();
   });
 });

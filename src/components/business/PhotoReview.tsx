@@ -7,6 +7,7 @@ import { colors, fonts, shadows } from '../../constants/theme';
 import { analyzePhotoQuality } from '../../lib/photoQualityGuard';
 import { editPhotoFromInstruction, applyNlEditToPhoto } from '../../lib/nlEdit';
 import { analyzeReferenceGrade, applyReferenceGradeToPhoto } from '../../lib/refColorMatch';
+import { analyzeWhiteBalance, applyWbCorrectionToPhoto } from '../../lib/wbCorrection';
 import { loadDevicePhotos } from '../../lib/media';
 import type { AlbumItem } from '../../lib/album';
 import { toDataUrl } from '../../lib/photoDataUrl';
@@ -38,6 +39,8 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
   const [refUri, setRefUri] = useState<string | null>(null);
   const [matching, setMatching] = useState(false);
   const [matchError, setMatchError] = useState<string | null>(null);
+  const [correcting, setCorrecting] = useState(false);
+  const [correctError, setCorrectError] = useState<string | null>(null);
   const [strength, setStrength] = useState(1);
   useEffect(() => {
     let cancelled = false;
@@ -47,7 +50,7 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
     });
     return () => { cancelled = true; };
   }, [uri]);
-  useEffect(() => { setEditedUri(null); setEditError(null); setMatchError(null); setRefUri(null); }, [uri]);
+  useEffect(() => { setEditedUri(null); setEditError(null); setMatchError(null); setCorrectError(null); setRefUri(null); }, [uri]);
 
   // Applies a natural-language instruction to the photo: the vision model
   // returns a grade + look parameter set, compiled to a LUT and applied. Fails
@@ -109,6 +112,25 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
       setMatchError('匹配未生效，请检查 AI 配置或换张参考图。');
     } finally {
       setMatching(false);
+    }
+  }
+
+  // Corrective white-balance / exposure pass: the model reads the preview for a
+  // colour cast and an exposure error and we apply the counter-shift as a LUT.
+  // Corrects rather than restyles, and stacks on the current preview. Fails open.
+  async function applyCorrection() {
+    if (correcting) return;
+    setCorrecting(true); setCorrectError(null);
+    try {
+      const config = await getActiveAIConfig();
+      const dataUrl = await toDataUrl(displayUri);
+      const reading = await analyzeWhiteBalance(config, dataUrl, new AbortController().signal);
+      const out = await applyWbCorrectionToPhoto(displayUri, reading, defaultFilterBackend(), strength);
+      setEditedUri(out);
+    } catch {
+      setCorrectError('校正未生效，请检查 AI 配置或稍后再试。');
+    } finally {
+      setCorrecting(false);
     }
   }
 
@@ -247,6 +269,21 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
               </ScrollView>
             ) : null}
             {matchError ? <Text style={styles.editError}>{matchError}</Text> : null}
+
+            {/* 自动校正白平衡与曝光：检测色偏/过欠曝并反向修正 */}
+            <View style={styles.matchRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="自动校正白平衡"
+                onPress={() => void applyCorrection()}
+                disabled={correcting}
+                style={({ pressed }) => [styles.matchToggle, pressed && styles.matchPressed, correcting && styles.matchDisabled]}
+              >
+                <Ionicons name="color-wand-outline" size={13} color={colors.ink} />
+                <Text style={styles.matchToggleText}>{correcting ? '校正中' : '自动校正白平衡'}</Text>
+              </Pressable>
+            </View>
+            {correctError ? <Text style={styles.editError}>{correctError}</Text> : null}
 
             {/* 强度：把 AI 增强效果向中性回调，避免过度处理 */}
             <View style={styles.strengthRow}>

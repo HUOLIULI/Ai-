@@ -193,6 +193,7 @@ On top of composition guidance, Drama applies a set of optional, online AI passe
 | **AI Beauty** | Softens skin, brightens, and warms portraits via bounded look parameters compiled into a LUT. | Capture flow, "AI Beauty" toggle |
 | **Natural-Language Edit** | Type a one-line instruction (e.g. "make the sky bluer") on the review screen; the model returns grade + beauty parameters that are compiled and applied to the shot. | Photo review screen |
 | **Reference Color Match** | Pick a reference photo from your library; the model analyzes the source and reference together and returns grade parameters that pull the source's color toward the reference. | Photo review screen, "Reference Match" |
+| **Auto White-Balance Correction** | Detects a colour cast (warm / cool / green / magenta) and an exposure error (over / under), then returns counter-shift parameters that neutralise them — "correct, don't transform". | Photo review screen, "Auto WB" |
 
 ### How it works
 
