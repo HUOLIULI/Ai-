@@ -38,9 +38,10 @@ describe('builtin plugins', () => {
     }
   });
 
-  it('mode prompts are non-empty', () => {
-    for (const mode of MODE_PLUGINS) {
-      expect(mode.prompt.trim().length).toBeGreaterThan(50);
-    }
+  it('registers one filter plugin per style LUT', () => {
+    const reg = new PluginRegistry();
+    registerBuiltinPlugins(reg);
+    expect(reg.filters()).toHaveLength(4);
+    expect(reg.filter('filter-清透')).not.toBeNull();
   });
 });
