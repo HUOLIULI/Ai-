@@ -575,8 +575,8 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
         if (!mounted.current || !activeRef.current) { await removeSampleFile(picture.uri); return; }
         const uri = await prepareCapturedPhoto(picture, zoom, aspect);
         if (!mounted.current || !activeRef.current) { await removeSampleFile(uri); return; }
-        // Apply the active style's LUT in the JS canvas backend (Web). Native
-        // falls through unchanged until the GPU backend lands. Fails open.
+        // Apply the active style's LUT through the platform-adaptive backend
+        // (native bitmap on Android, canvas on web). Fails open.
         let filtered = await applyStyleFilterToPhoto(uri, contextRef.current.style);
         if (!mounted.current || !activeRef.current) { await removeSampleFile(filtered); return; }
         // Optional AI color grade: send the captured frame through the vision

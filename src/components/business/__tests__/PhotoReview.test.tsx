@@ -14,6 +14,7 @@ jest.mock('../../../lib/nlEdit', () => ({
   applyNlEditToPhoto: jest.fn(async (_uri: string) => 'edited-uri'),
 }));
 jest.mock('../../../lib/aiConfig', () => ({ getActiveAIConfig: jest.fn(async () => ({ provider: 'dashscope', apiKey: 'k', baseUrl: 'https://x', model: 'm' })) }));
+jest.mock('../../../lib/photoDataUrl', () => ({ toDataUrl: jest.fn(async (uri: string) => uri) }));
 
 describe('PhotoReview natural-language edit', () => {
   it('renders the edit instruction input', () => {

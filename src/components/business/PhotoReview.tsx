@@ -6,6 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { colors, fonts, shadows } from '../../constants/theme';
 import { analyzePhotoQuality } from '../../lib/photoQualityGuard';
 import { editPhotoFromInstruction, applyNlEditToPhoto } from '../../lib/nlEdit';
+import { toDataUrl } from '../../lib/photoDataUrl';
 import { getActiveAIConfig } from '../../lib/aiConfig';
 import { defaultFilterBackend } from '../../plugin/builtin';
 import { IconButton } from '../ui/IconButton';
@@ -38,7 +39,8 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
     setEditing(true); setEditError(null);
     try {
       const config = await getActiveAIConfig();
-      const edit = await editPhotoFromInstruction(config, text, editedUri ?? uri, new AbortController().signal);
+      const dataUrl = await toDataUrl(editedUri ?? uri);
+      const edit = await editPhotoFromInstruction(config, text, dataUrl, new AbortController().signal);
       const out = await applyNlEditToPhoto(editedUri ?? uri, edit, defaultFilterBackend());
       setEditedUri(out);
     } catch {
