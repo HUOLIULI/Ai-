@@ -140,27 +140,24 @@
 4. 测试通过
 5. 提交
 
-### Task 6: 拆 CameraCapture 组件
+### Task 6: 拆 CameraCapture 组件（已完成，组件命名按实际 seam 调整）
 
-**Files**
-- Create: `src/components/business/ViewfinderOverlay.tsx`
-- Create: `src/components/business/ParameterStrip.tsx`
-- Create: `src/components/business/GuidanceBanner.tsx`
-- Create: `src/hooks/useCameraSession.ts`
-- Modify: `src/components/business/CameraCapture.tsx`（瘦身到 < 300 行，只编排）
+**Files**（实际落地）
+- Create: `src/components/business/CameraHeader.tsx`
+- Create: `src/components/business/SceneModeRow.tsx`
+- Create: `src/components/business/CameraViewfinder.tsx`（含焦点 pill）
+- Create: `src/components/business/CameraParameterCard.tsx`
+- Create: `src/components/business/CameraStyleStrip.tsx`
+- Create: `src/components/business/CaptureDeck.tsx`
+- Modify: `src/components/business/CameraCapture.tsx`（900 → 263 行，只编排）
 - Test: `src/components/business/__tests__/CameraCapture.test.tsx`（渲染冒烟）
 
-**Interfaces**
-- `useCameraSession(cameraRef)` → `{ viewfinder, aspect, capture(): Promise<uri> }`
-- `ViewfinderOverlay` props：`{ target, ready, message }`
-- `ParameterStrip` props：`{ params, blocked, onOpen }`
-- `GuidanceBanner` props：`{ enabled, message, light }`
+**偏差说明**：原计划抽 `useCameraSession` + `ViewfinderOverlay`/`ParameterStrip`/`GuidanceBanner`。实际按组件现有 seam 拆成 6 个展示子组件（各自带 StyleSheet），未抽 `useCameraSession` hook——viewfinder 尺寸逻辑留在编排层通过 `onLayout` 回传，避免额外 hook 边界。`GuidanceBanner` 能力已由现有 `CameraGuidanceControls` 覆盖，不重复抽。
 
 **Steps**
-1. 抽 `useCameraSession`，迁移 viewfinder 尺寸逻辑
-2. 抽三个子组件，CameraCapture 变编排层
-3. 冒烟测试：渲染不崩
-4. 提交
+1. 冒烟测试绿基线（commit 695de7b）
+2. 抽 6 个子组件 + 各自样式，CameraCapture 变编排层（commit 0db8720）
+3. 冒烟测试守住组合；tsc/eslint/jest 全绿
 
 ### Task 7: 全量验证
 
