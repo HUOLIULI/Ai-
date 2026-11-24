@@ -195,6 +195,7 @@ On top of composition guidance, Drama applies a set of optional, online AI passe
 | **Reference Color Match** | Pick a reference photo from your library; the model analyzes the source and reference together and returns grade parameters that pull the source's color toward the reference. | Photo review screen, "Reference Match" |
 | **Auto White-Balance Correction** | Detects a colour cast (warm / cool / green / magenta) and an exposure error (over / under), then returns counter-shift parameters that neutralise them — "correct, don't transform". | Photo review screen, "Auto WB" |
 | **AI Scene Advice** | On the review screen, recognises the scene of an already-taken photo, suggests a matching style with a rationale, and applies the recommended style filter in one tap. | Photo review screen, "Scene Advice" |
+| **One-Tap Auto-Enhance** | The flagship "just make it good" action: runs scene style and corrective white-balance/exposure in parallel and applies both in one tap, scaled by the strength control. | Photo review screen, "Auto-Enhance" |
 
 ### How it works
 

@@ -9,6 +9,7 @@ import { editPhotoFromInstruction, applyNlEditToPhoto } from '../../lib/nlEdit';
 import { analyzeReferenceGrade, applyReferenceGradeToPhoto } from '../../lib/refColorMatch';
 import { analyzeWhiteBalance, applyWbCorrectionToPhoto } from '../../lib/wbCorrection';
 import { getSceneAdvice, applySceneAdviceToPhoto, type SceneAdvice } from '../../lib/sceneAdvice';
+import { planAutoEnhance, applyAutoEnhanceToPhoto } from '../../lib/autoEnhance';
 import { loadDevicePhotos } from '../../lib/media';
 import type { AlbumItem } from '../../lib/album';
 import { toDataUrl } from '../../lib/photoDataUrl';
@@ -46,6 +47,8 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
   const [adviceLoading, setAdviceLoading] = useState(false);
   const [adviceError, setAdviceError] = useState<string | null>(null);
   const [applyingAdvice, setApplyingAdvice] = useState(false);
+  const [enhancing, setEnhancing] = useState(false);
+  const [enhanceError, setEnhanceError] = useState<string | null>(null);
   const [strength, setStrength] = useState(1);
   useEffect(() => {
     let cancelled = false;
@@ -55,7 +58,7 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
     });
     return () => { cancelled = true; };
   }, [uri]);
-  useEffect(() => { setEditedUri(null); setEditError(null); setMatchError(null); setCorrectError(null); setAdvice(null); setAdviceError(null); setRefUri(null); }, [uri]);
+  useEffect(() => { setEditedUri(null); setEditError(null); setMatchError(null); setCorrectError(null); setAdvice(null); setAdviceError(null); setEnhanceError(null); setRefUri(null); }, [uri]);
 
   // Applies a natural-language instruction to the photo: the vision model
   // returns a grade + look parameter set, compiled to a LUT and applied. Fails
@@ -171,6 +174,25 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
     }
   }
 
+  // One-tap auto-enhance: the "just make it good" action. Runs scene style and
+  // corrective white-balance in parallel, then applies both (style LUT first,
+  // corrective grade on top) scaled by the strength control. Fails open.
+  async function applyEnhance() {
+    if (enhancing) return;
+    setEnhancing(true); setEnhanceError(null);
+    try {
+      const config = await getActiveAIConfig();
+      const dataUrl = await toDataUrl(displayUri);
+      const plan = await planAutoEnhance(config, dataUrl, new AbortController().signal);
+      const out = await applyAutoEnhanceToPhoto(displayUri, plan, defaultFilterBackend(), strength);
+      setEditedUri(out);
+    } catch {
+      setEnhanceError('增强未生效，请检查 AI 配置或稍后再试。');
+    } finally {
+      setEnhancing(false);
+    }
+  }
+
   return (
     <View style={styles.page}>
       <View style={styles.header}>
@@ -227,6 +249,19 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
             </View>
 
             <Text style={styles.note}>保存到相册后将自动继续拍摄，也可以重拍一次。</Text>
+
+            {/* 一键智能增强：场景风格 + 白平衡校正，一次搞定 */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="一键智能增强"
+              onPress={() => void applyEnhance()}
+              disabled={enhancing}
+              style={({ pressed }) => [styles.enhanceButton, pressed && styles.matchPressed, enhancing && styles.matchDisabled]}
+            >
+              <Ionicons name="sparkles" size={14} color={colors.secondaryFixed} />
+              <Text style={styles.enhanceButtonText}>{enhancing ? '增强中…' : '一键智能增强'}</Text>
+            </Pressable>
+            {enhanceError ? <Text style={styles.editError}>{enhanceError}</Text> : null}
 
             {/* 一句话修图：自然语言指令驱动 */}
             <View style={styles.editRow}>
@@ -707,6 +742,22 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 16,
     marginTop: 6,
+  },
+  enhanceButton: {
+    minHeight: 40,
+    borderRadius: 999,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: colors.primary,
+    marginTop: 14,
+    ...shadows.glassSm,
+  },
+  enhanceButtonText: {
+    color: colors.secondaryFixed,
+    fontSize: 13,
+    fontWeight: '700',
   },
   actions: {
     flexDirection: 'row',

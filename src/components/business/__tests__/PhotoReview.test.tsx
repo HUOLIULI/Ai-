@@ -29,6 +29,13 @@ jest.mock('../../../lib/sceneAdvice', () => ({
   })),
   applySceneAdviceToPhoto: jest.fn(async (_uri: string) => 'advised-uri'),
 }));
+jest.mock('../../../lib/autoEnhance', () => ({
+  planAutoEnhance: jest.fn(async () => ({
+    advice: { scene: '逆光', mode: '风景', style: '清透', exposureHint: '', rationale: '', confidence: 0.9 },
+    wb: { cast: '偏暖', exposure: '过曝', severity: 0.6 },
+  })),
+  applyAutoEnhanceToPhoto: jest.fn(async (_uri: string) => 'enhanced-uri'),
+}));
 jest.mock('../../../lib/media', () => ({
   loadDevicePhotos: jest.fn(async () => [
     { uri: 'ref-a', title: '参考A', tag: '设备相册' },
@@ -123,5 +130,21 @@ describe('PhotoReview scene advice', () => {
     render(<PhotoReview uri="photo-uri" onRetake={() => {}} onSave={() => {}} saving={false} />);
     fireEvent.press(screen.getByLabelText('获取场景建议'));
     expect(await screen.findByText('未能识别场景，请检查 AI 配置或稍后再试。')).toBeDefined();
+  });
+});
+
+describe('PhotoReview one-tap auto-enhance', () => {
+  it('renders the flagship auto-enhance button and applies a plan', async () => {
+    render(<PhotoReview uri="photo-uri" onRetake={() => {}} onSave={() => {}} saving={false} />);
+    fireEvent.press(screen.getByLabelText('一键智能增强'));
+    expect(await screen.findByLabelText('一键智能增强')).toBeDefined();
+  });
+
+  it('keeps the photo unchanged and shows a message when auto-enhance fails', async () => {
+    const { applyAutoEnhanceToPhoto } = require('../../../lib/autoEnhance');
+    (applyAutoEnhanceToPhoto as jest.Mock).mockRejectedValueOnce(new Error('boom'));
+    render(<PhotoReview uri="photo-uri" onRetake={() => {}} onSave={() => {}} saving={false} />);
+    fireEvent.press(screen.getByLabelText('一键智能增强'));
+    expect(await screen.findByText('增强未生效，请检查 AI 配置或稍后再试。')).toBeDefined();
   });
 });
