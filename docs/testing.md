@@ -77,6 +77,16 @@ npx tsc --noEmit
 
 验收：`decideShutter` / `assessQuality` / `computeQualityStats` / `eyeStateFromProbabilities` 纯函数单测覆盖暗光/过曝/正常/人像/手抖/闭眼/信号缺失各分支；真机需标定阈值（`DARK_MEAN`、`BRIGHT_HIGHLIGHTS`、`BLUR_SHARPNESS`、`SHAKY_SHAKE`、`EYE_OPEN_THRESHOLD`）。闭眼采集端已接：`eyeStateFromProbabilities` 从 MLKit 双眼开合概率判定（任一开即视为开，缺概率安全降级），Android 上 `analyzePhotoQuality` 跑 MLKit 取眼睛状态、Web 上 canvas 出模糊/曝光，平台维度互补、各自 fail-open。注意 MLKit 闭眼概率需 `classificationMode`，`analyzePhotoQuality` 的闭眼路径已懒初始化开启它（幂等，对只读人脸框的 faceBox 无害；若重初始化失败则沿用原配置、闭眼维度安全跳过）。
 
+### AI 增强（在线，复用 qwen-vl 通路）
+
+三项在线增强均**复用现有 LUT 引擎与 aiClient 通路**，纯参数、可单测、可开关，全部 fail-open（模型失败保留原图，绝不阻塞拍照）。
+
+- **三分法构图建议**（`src/lib/ruleOfThirds.ts`）：`nearestThirdPoint` 把 AI aimPoint 吸附到最近的三分网格交点，`thirdsAdjustment` 给出把主体落到该点的水平/垂直微调与像素偏移。纯函数、无 DOM/网络依赖，可作为构图引导的补充（接 UI 待后续）。
+- **AI 自动调色**（`src/lib/colorGrade.ts` + `colorGradeAi.ts`）：视觉模型分析画面返回五个有界参数（色温/曝光/对比/饱和/色调），`colorGradeParamsToLut` 编译成 LutSpec（矩阵+曲线+色温）套进 LUT 引擎。捕获流经 `autoColorGrade` 开关触发，复用快门照片的 base64（不二次采样），套在风格滤镜之上。UI："AI 调色"开关。
+- **AI 美颜**（`src/lib/beauty.ts` + `beautyAi.ts`）：模型返回三个有界参数（磨皮/提亮/暖肤），映射到调色空间（磨皮→负对比柔化、提亮→曝光、暖肤→色温）编译成 LutSpec。捕获流经 `autoBeauty` 开关触发，套在调色之上。**空间效果（真·皮肤模糊、眼部提亮）超出 LUT 引擎能力，留待 GPU 后端**。UI："AI 美颜"开关。
+
+验收：调色/美颜的参数归一化与 LUT 编译纯函数单测覆盖越界/缺省/非有限值/中性各分支；`buildXxxMessages`/`parseXxx` 测构造与解析（含格式非法抛错、缺字段降级中性）；controls 测开关渲染/状态/点击/无 handler 隐藏。真机需验证：模型返回参数的观感标定、两次模型往返（调色+美颜同时开）的延迟、以及 `base64: true` 对快门照片体积的影响。
+
 ### 对外分发插件（expo-drama）
 
 `plugins/expo-drama` 是可发布的 Expo config plugin，负责自动链接不覆盖的两项原生配置：
