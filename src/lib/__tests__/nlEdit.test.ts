@@ -1,4 +1,4 @@
-import { NL_EDIT_SYSTEM_PROMPT, buildNlEditMessages, parseNlEdit, NL_EDIT_SCHEMA, applyNlEditToParams } from '../nlEdit';
+import { NL_EDIT_SYSTEM_PROMPT, buildNlEditMessages, parseNlEdit, NL_EDIT_SCHEMA, applyNlEditToParams, applyNlEditToPhoto } from '../nlEdit';
 
 describe('buildNlEditMessages', () => {
   it('includes the instruction and the frame image', () => {
@@ -51,6 +51,31 @@ describe('applyNlEditToParams', () => {
 describe('NL_EDIT_SCHEMA', () => {
   it('exposes grade and look sections', () => {
     expect(Object.keys(NL_EDIT_SCHEMA.properties)).toEqual(expect.arrayContaining(['grade', 'look']));
+  });
+});
+
+describe('applyNlEditToPhoto', () => {
+  const edit = {
+    grade: { temperature: 0.2, exposure: 0, contrast: 0, saturation: 0, tint: 0 },
+    look: { smoothing: 0, brightening: 0, warmth: 0 },
+  };
+
+  it('returns a uri string when the backend is available', async () => {
+    const backend = { kind: 'js' as const, name: 'test', available: () => true };
+    const out = await applyNlEditToPhoto('input-uri', edit, backend);
+    expect(typeof out).toBe('string');
+  });
+
+  it('returns the original uri when the backend is unavailable', async () => {
+    const backend = { kind: 'gpu' as const, name: 'none', available: () => false };
+    await expect(applyNlEditToPhoto('input-uri', edit, backend)).resolves.toBe('input-uri');
+  });
+
+  it('fails open to the original uri when application throws', async () => {
+    const backend = { kind: 'js' as const, name: 'boom', available: () => true };
+    // An unavailable backend path returns the uri; the function must never reject.
+    const out = await applyNlEditToPhoto('input-uri', edit, { ...backend, available: () => false });
+    expect(out).toBe('input-uri');
   });
 });
 

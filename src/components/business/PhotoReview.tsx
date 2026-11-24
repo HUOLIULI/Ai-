@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, fonts, shadows } from '../../constants/theme';
 import { analyzePhotoQuality } from '../../lib/photoQualityGuard';
+import { editPhotoFromInstruction, applyNlEditToPhoto } from '../../lib/nlEdit';
+import { getActiveAIConfig } from '../../lib/aiConfig';
+import { canvasFilterBackend } from '../../plugin/builtin';
 import { IconButton } from '../ui/IconButton';
 import { PrimaryButton } from '../ui/PrimaryButton';
 
@@ -12,6 +15,10 @@ type Props = { uri: string; onRetake: () => void; onSave: () => void; saving: bo
 
 export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
   const [qualityHints, setQualityHints] = useState<string[]>([]);
+  const [instruction, setInstruction] = useState('');
+  const [editedUri, setEditedUri] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
     setQualityHints([]);
@@ -20,6 +27,28 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
     });
     return () => { cancelled = true; };
   }, [uri]);
+  useEffect(() => { setEditedUri(null); setEditError(null); }, [uri]);
+
+  // Applies a natural-language instruction to the photo: the vision model
+  // returns a grade + look parameter set, compiled to a LUT and applied. Fails
+  // open with a visible message; the original photo is never destroyed.
+  async function applyEdit() {
+    const text = instruction.trim();
+    if (!text || editing) return;
+    setEditing(true); setEditError(null);
+    try {
+      const config = await getActiveAIConfig();
+      const edit = await editPhotoFromInstruction(config, text, editedUri ?? uri, new AbortController().signal);
+      const out = await applyNlEditToPhoto(editedUri ?? uri, edit, canvasFilterBackend);
+      setEditedUri(out);
+    } catch {
+      setEditError('修图未生效，请检查 AI 配置或换一句指令。');
+    } finally {
+      setEditing(false);
+    }
+  }
+
+  const displayUri = editedUri ?? uri;
 
   return (
     <View style={styles.page}>
@@ -30,7 +59,7 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
       </View>
 
       <View style={styles.imageWrap}>
-        <Image source={{ uri }} style={styles.image} />
+        <Image source={{ uri: displayUri }} style={styles.image} />
         <LinearGradient
           colors={['transparent', 'rgba(20,30,38,0.2)']}
           style={styles.imageOverlay}
@@ -77,6 +106,32 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
             </View>
 
             <Text style={styles.note}>保存到相册后将自动继续拍摄，也可以重拍一次。</Text>
+
+            {/* 一句话修图：自然语言指令驱动 */}
+            <View style={styles.editRow}>
+              <TextInput
+                value={instruction}
+                onChangeText={setInstruction}
+                placeholder="一句话修图，如：把天空调蓝一点"
+                placeholderTextColor={colors.muted}
+                style={styles.editInput}
+                editable={!editing}
+                accessibilityLabel="一句话修图指令"
+              />
+              {instruction.trim().length > 0 && (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="应用修图"
+                  onPress={() => void applyEdit()}
+                  disabled={editing}
+                  style={({ pressed }) => [styles.editApply, pressed && styles.editPressed, editing && styles.editDisabled]}
+                >
+                  <Ionicons name="sparkles-outline" size={13} color={colors.secondaryFixed} />
+                  <Text style={styles.editApplyText}>{editing ? '修图中' : '应用'}</Text>
+                </Pressable>
+              )}
+            </View>
+            {editError ? <Text style={styles.editError}>{editError}</Text> : null}
 
             {qualityHints.length > 0 && (
               <View style={styles.qualityBanner}>
@@ -245,6 +300,49 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
     fontFamily: fonts.body,
+  },
+  editRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+  },
+  editInput: {
+    flex: 1,
+    minHeight: 36,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    borderWidth: 1,
+    borderColor: 'rgba(24, 22, 18, 0.12)',
+    color: colors.ink,
+    fontSize: 12,
+  },
+  editApply: {
+    minHeight: 36,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.primary,
+  },
+  editPressed: {
+    opacity: 0.85,
+  },
+  editDisabled: {
+    opacity: 0.6,
+  },
+  editApplyText: {
+    color: colors.secondaryFixed,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  editError: {
+    color: colors.tertiary,
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 6,
   },
   actions: {
     flexDirection: 'row',

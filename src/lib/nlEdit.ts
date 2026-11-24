@@ -1,7 +1,9 @@
 import { requestAICompletion, type AIMessage } from './aiClient';
 import type { GuidanceConfig } from '../types/guidance';
-import { normalizeColorGrade, COLOR_GRADE_PARAMS, type ColorGradeParams } from './colorGrade';
-import { normalizeBeauty, BEAUTY_PARAMS, type BeautyParams } from './beauty';
+import type { FilterBackend } from '../plugin/types';
+import { applyLutSpecToPhoto } from '../plugin/builtin/filters';
+import { colorGradeParamsToLut, normalizeColorGrade, COLOR_GRADE_PARAMS, type ColorGradeParams } from './colorGrade';
+import { beautyParamsToLut, normalizeBeauty, BEAUTY_PARAMS, type BeautyParams } from './beauty';
 
 // Natural-language editing ("把天空调蓝一点"). The vision model reads the frame
 // plus the user's instruction and returns a color-grade and a beauty parameter
@@ -55,6 +57,21 @@ export function applyNlEditToParams(edit: NlEditParams): NlEditParams {
     grade: normalizeColorGrade(edit.grade),
     look: normalizeBeauty(edit.look),
   };
+}
+
+// Applies a natural-language edit to a photo by compiling the grade and look
+// parameter sets into LUTs and running them over the image (grade first, then
+// the beauty look on top). Fails open: any backend error returns the original
+// uri so editing never destroys the captured photo.
+export async function applyNlEditToPhoto(uri: string, edit: NlEditParams, backend: FilterBackend): Promise<string> {
+  const { grade, look } = applyNlEditToParams(edit);
+  try {
+    let out = await applyLutSpecToPhoto(uri, colorGradeParamsToLut(grade), backend);
+    out = await applyLutSpecToPhoto(out, beautyParamsToLut(look), backend);
+    return out;
+  } catch {
+    return uri;
+  }
 }
 
 // JSON schema constraining the model to the grade + look parameter sets.
