@@ -20,10 +20,16 @@ import { analyzeColorGrade } from '../lib/colorGradeAi';
 import { colorGradeParamsToLut } from '../lib/colorGrade';
 import { analyzeBeauty } from '../lib/beautyAi';
 import { beautyParamsToLut } from '../lib/beauty';
+import { recognizeScene } from '../lib/sceneAi';
+import { sceneToRecommendation } from '../lib/sceneRecognition';
 import { pluginRegistry } from '../plugin/registry';
 import { decideShutter, type ShutterDecision, type ShutterSignals } from '../lib/shutterDecision';
 import { waitForStability, isShakeStable, STABILITY_WAIT_MS } from '../lib/captureStability';
 import type { CameraCapabilities, CameraMode, CameraStyle, Guidance, GuidanceConfig, GuidanceContext, GuidanceResult, GuidanceStatus, WhiteBalance } from '../types/guidance';
+
+// Minimum confidence for an auto-scene reading to switch mode/style. Below this
+// the camera keeps the user's current selection rather than guessing.
+const SCENE_CONFIDENCE_MIN = 0.6;
 
 type AppliedTuning = { aperture: number | null; whiteBalance: WhiteBalance | 'keep'; contrast: number | null };
 export type ManualCameraSettings = Partial<AppliedTuning> & { zoom?: number; flash?: GuidanceContext['flash'] };
@@ -87,6 +93,10 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
   // returned look is compiled into a LUT and applied on top. Fails open.
   const [autoBeauty, setAutoBeauty] = useState(false);
   const autoBeautyRef = useRef(false);
+  // Auto scene: when on, a sampled frame is classified by the vision model and
+  // the detected scene pre-configures the mode and style. Fails open.
+  const [autoScene, setAutoScene] = useState(false);
+  const autoSceneRef = useRef(false);
   // Stable identity for the refresh callback so effects and the guidance loop
   // can call it without it changing identity across renders.
   const refreshRef = useRef<() => void>(() => {});
@@ -263,6 +273,20 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
           // shutter decision reflects current lighting. Fails open per-detector.
           await updateSignalRefs(sample);
           if (mounted.current) refreshRef.current();
+          // Optional auto scene: classify the sample and pre-configure mode and
+          // style for the detected scene. Only fires when enabled with a model
+          // config and a confident reading that differs from the current mode.
+          // Fails open on any error so sampling never blocks on the model.
+          if (autoSceneRef.current && config.current) {
+            try {
+              const reading = await recognizeScene(config.current, sample.dataUrl, signal);
+              if (reading.confidence >= SCENE_CONFIDENCE_MIN) {
+                const rec = sceneToRecommendation(reading.scene);
+                if (rec.mode !== contextRef.current.mode) changeMode(rec.mode);
+                if (rec.style !== contextRef.current.style) changeStyle(rec.style, true);
+              }
+            } catch { /* keep current mode/style */ }
+          }
           return sample;
         }
         finally { samplingRef.current = false; if (mounted.current) setSampling(false); }
@@ -432,6 +456,9 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
   }
   function toggleAutoBeauty() {
     autoBeautyRef.current = !autoBeautyRef.current; setAutoBeauty(autoBeautyRef.current);
+  }
+  function toggleAutoScene() {
+    autoSceneRef.current = !autoSceneRef.current; setAutoScene(autoSceneRef.current);
   }
   function manualZoom(value: number) {
     autoRef.current = false; setAutoZoom(false); cancelZoom();
@@ -621,7 +648,7 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
     // stable in behavior; including it would re-run the effect every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shutterDecision, autoFlash]);
-  return { context, enabled, autoZoom, adjustingZoom, adjustingParameters, ready, active, capturing, sampling, switching, starting, result, target, executionPhase, status, configMissing, sensorAvailable, tuningMessage, appliedTuning, shutterDecision, autoStyle, autoFlash, autoColorGrade, autoBeauty,
-    toggleGuidance, toggleAutoZoom, toggleAutoStyle, toggleAutoFlash, toggleAutoColorGrade, toggleAutoBeauty, manualZoom, adjustParameters, changeStyle, changeMode, flipCamera, cameraReady, cameraError, capture, confirmAdjustment, sampleFrame, refreshShutterDecision,
+  return { context, enabled, autoZoom, adjustingZoom, adjustingParameters, ready, active, capturing, sampling, switching, starting, result, target, executionPhase, status, configMissing, sensorAvailable, tuningMessage, appliedTuning, shutterDecision, autoStyle, autoFlash, autoColorGrade, autoBeauty, autoScene,
+    toggleGuidance, toggleAutoZoom, toggleAutoStyle, toggleAutoFlash, toggleAutoColorGrade, toggleAutoBeauty, toggleAutoScene, manualZoom, adjustParameters, changeStyle, changeMode, flipCamera, cameraReady, cameraError, capture, confirmAdjustment, sampleFrame, refreshShutterDecision,
     refresh: () => invalidate('正在重新规划当前画面') };
 }

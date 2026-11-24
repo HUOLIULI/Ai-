@@ -15,6 +15,8 @@ type Props = {
   onToggleColorGrade?: () => void;
   autoBeauty?: boolean;
   onToggleBeauty?: () => void;
+  autoScene?: boolean;
+  onToggleScene?: () => void;
 };
 
 export function CameraGuidanceControls(props: Props) {
@@ -48,6 +50,13 @@ export function CameraGuidanceControls(props: Props) {
           disabled={props.disabled} onPress={props.onToggleBeauty} style={[styles.button, props.autoBeauty && styles.selected]}>
           <Ionicons name="happy-outline" size={14} color={props.autoBeauty ? colors.secondaryFixed : colors.onSurfaceVariant} />
           <Text style={[styles.text, props.autoBeauty && styles.textSelected]}>AI 美颜{props.autoBeauty ? ' 开' : ' 关'}</Text>
+        </Pressable>
+      )}
+      {props.onToggleScene && (
+        <Pressable accessibilityRole="switch" accessibilityLabel="AI 场景" accessibilityState={{ checked: Boolean(props.autoScene) }}
+          disabled={props.disabled} onPress={props.onToggleScene} style={[styles.button, props.autoScene && styles.selected]}>
+          <Ionicons name="aperture-outline" size={14} color={props.autoScene ? colors.secondaryFixed : colors.onSurfaceVariant} />
+          <Text style={[styles.text, props.autoScene && styles.textSelected]}>AI 场景{props.autoScene ? ' 开' : ' 关'}</Text>
         </Pressable>
       )}
       {props.onTogglePose && (

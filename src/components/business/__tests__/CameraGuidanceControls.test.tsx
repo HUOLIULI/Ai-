@@ -60,3 +60,22 @@ describe('CameraGuidanceControls beauty toggle', () => {
     expect(screen.queryByLabelText('AI 美颜')).toBeNull();
   });
 });
+
+describe('CameraGuidanceControls scene toggle', () => {
+  it('shows the AI scene toggle when the handler is provided', () => {
+    renderControls({ autoScene: false, onToggleScene: jest.fn() });
+    expect(screen.getByLabelText('AI 场景')).toBeDefined();
+  });
+
+  it('fires the scene toggle handler on press', () => {
+    const onToggleScene = jest.fn();
+    renderControls({ autoScene: false, onToggleScene, disabled: false });
+    fireEvent.press(screen.getByLabelText('AI 场景'));
+    expect(onToggleScene).toHaveBeenCalledTimes(1);
+  });
+
+  it('hides the scene toggle when no handler is provided', () => {
+    renderControls({});
+    expect(screen.queryByLabelText('AI 场景')).toBeNull();
+  });
+});
