@@ -45,7 +45,10 @@ export function eyeStateFromProbabilities(
 
 // Computes blur / exposure stats from raw luminance bytes (one per entry).
 // Sharpness is the mean absolute difference between horizontally adjacent
-// pixels, a lightweight proxy for detail. Pure and total (never throws).
+// pixels, a lightweight proxy for detail. The flat array's true width isn't
+// known here, so every consecutive pair is compared; the handful of vertical
+// row-boundary jumps are negligible noise against the blur threshold.
+// Pure and total (never throws).
 export function computeQualityStats(luma: Uint8Array): QualityStats {
   if (luma.length === 0) return { sharpness: 0, mean: 0, highlights: 0 };
   let sum = 0;
@@ -56,9 +59,7 @@ export function computeQualityStats(luma: Uint8Array): QualityStats {
     const value = luma[i];
     sum += value;
     if (value >= 240) highlights++;
-    // Compare each pixel to the previous one in the same row so vertical
-    // row boundaries don't inflate the gradient.
-    if (i > 0 && i % 64 !== 0) {
+    if (i > 0) {
       gradient += Math.abs(value - luma[i - 1]);
       gradientSamples++;
     }
