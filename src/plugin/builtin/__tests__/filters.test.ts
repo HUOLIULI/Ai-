@@ -1,5 +1,5 @@
 import { LUTS } from '../lut';
-import { applyLutToImageData, jsFilterBackend, styleFilter } from '../filters';
+import { applyLutToImageData, applyLutSpecToPhoto, jsFilterBackend, styleFilter } from '../filters';
 import type { CameraStyle } from '../../../types/guidance';
 
 function fakeImageData(width: number, height: number, fill = 128): ImageData {
@@ -64,5 +64,19 @@ describe('jsFilterBackend / styleFilter', () => {
     // In unit tests, the backend resolves synchronously to a sentinel uri.
     const result = await filter.apply(jsFilterBackend, 'input-uri');
     expect(typeof result).toBe('string');
+  });
+});
+
+describe('applyLutSpecToPhoto', () => {
+  it('applies an arbitrary LutSpec and returns a uri', async () => {
+    const lut = { name: 'ai-grade', matrix: [1, 0, 0, 0, 1, 0, 0, 0, 1] };
+    const result = await applyLutSpecToPhoto('input-uri', lut, jsFilterBackend);
+    expect(typeof result).toBe('string');
+  });
+
+  it('is a no-op returning the original uri when the backend is unavailable', async () => {
+    const unavailable = { kind: 'gpu' as const, name: 'none', available: () => false };
+    const lut = { name: 'ai-grade', matrix: [1, 0, 0, 0, 1, 0, 0, 0, 1] };
+    await expect(applyLutSpecToPhoto('input-uri', lut, unavailable)).resolves.toBe('input-uri');
   });
 });

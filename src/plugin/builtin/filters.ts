@@ -1,6 +1,6 @@
 import { LUTS } from './lut';
 import { applyLutToImageUri } from './canvasBackend';
-import type { FilterBackend, FilterPlugin } from '../types';
+import type { FilterBackend, FilterPlugin, LutSpec } from '../types';
 import type { CameraStyle } from '../../types/guidance';
 
 // Re-exported for consumers that import pixel math from the filters module.
@@ -19,8 +19,15 @@ export const jsFilterBackend: FilterBackend = {
 // returned unchanged so capture still succeeds.
 export function styleFilter(style: CameraStyle): FilterPlugin {
   const lut = LUTS[style];
+  return lutFilter(lut);
+}
+
+// A filter plugin driven by an arbitrary LutSpec. Powers both the built-in
+// style filters and the AI color grade, which compiles model output into a
+// LutSpec at runtime.
+export function lutFilter(lut: LutSpec): FilterPlugin {
   return {
-    id: `filter-${style}`,
+    id: `filter-${lut.name}`,
     apply: async (backend, uri) => {
       if (!backend.available()) return uri;
       if (backend.kind === 'js') {
@@ -30,4 +37,15 @@ export function styleFilter(style: CameraStyle): FilterPlugin {
       return uri;
     },
   };
+}
+
+// Applies any LutSpec to a photo uri through the given backend. Fails open:
+// an unavailable backend or a thrown error returns the original uri so capture
+// never blocks on the filter.
+export async function applyLutSpecToPhoto(uri: string, lut: LutSpec, backend: FilterBackend = jsFilterBackend): Promise<string> {
+  try {
+    return await lutFilter(lut).apply(backend, uri);
+  } catch {
+    return uri;
+  }
 }
