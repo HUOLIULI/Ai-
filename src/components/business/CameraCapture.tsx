@@ -18,6 +18,7 @@ import { CameraGuidanceControls } from './CameraGuidanceControls';
 import { CameraParameterPanel } from './CameraParameterPanel';
 import { CameraStyleStrip } from './CameraStyleStrip';
 import { CaptureDeck } from './CaptureDeck';
+import { ShutterDecisionCard } from '../ui/ShutterDecisionCard';
 
 type Props = {
   cameraRef: React.RefObject<CameraView>;
@@ -196,6 +197,8 @@ export function CameraCapture({ cameraRef, onClose, onCapture, onConfigure, onOp
             disabled={guide.capturing}
             onChangeStyle={guide.changeStyle}
           />
+
+          <ShutterDecisionCard decision={guide.shutterDecision} />
 
           <CaptureDeck
             galleryThumb={galleryThumb}

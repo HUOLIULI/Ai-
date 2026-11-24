@@ -15,6 +15,8 @@ import { GUIDANCE_SETTLE_MS } from '../constants/guidance';
 import { SYSTEM_CAMERA_CAPABILITIES } from '../constants/cameraCapabilities';
 import { applyCameraTuning, needsCameraTuning, readCameraCapabilities, resetCameraTuning, styleTuning, validateCameraTuning } from '../lib/cameraTuning';
 import { applyStyleFilterToPhoto } from '../plugin/builtin';
+import { pluginRegistry } from '../plugin/registry';
+import { decideShutter, type ShutterDecision, type ShutterSignals } from '../lib/shutterDecision';
 import type { CameraCapabilities, CameraMode, CameraStyle, Guidance, GuidanceConfig, GuidanceContext, GuidanceResult, GuidanceStatus, WhiteBalance } from '../types/guidance';
 
 type AppliedTuning = { aperture: number | null; whiteBalance: WhiteBalance | 'keep'; contrast: number | null };
@@ -52,6 +54,32 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
   const [configMissing, setConfigMissing] = useState(false);
   const [sensorAvailable, setSensorAvailable] = useState(false);
   const mounted = useRef(true);
+  // Offline shutter decision: tracked from on-device signals (gyro shake +
+  // latest sampled-frame lighting). Computed with decideShutter, no network.
+  const shakeRef = useRef<number | null>(null);
+  const lastLightingRef = useRef<{ mean: number; highlights: number } | null>(null);
+  const facesRef = useRef<{ count: number } | null>(null);
+  const [shutterDecision, setShutterDecision] = useState<ShutterDecision | null>(null);
+  const refreshShutterDecision = () => {
+    const signals: ShutterSignals = { lighting: lastLightingRef.current, faces: facesRef.current, stability: shakeRef.current === null ? null : { shake: shakeRef.current } };
+    setShutterDecision(decideShutter(signals));
+  };
+  // Runs the on-device lighting detector on an offline sample frame and records
+  // the luminance stats for the shutter decision. Per-detector fail-open: a
+  // missing detector or a decode failure leaves the previous reading intact.
+  async function updateSignalRefs(sample: { dataUrl: string; capturedAt: number }) {
+    const detector = pluginRegistry.detector('lighting');
+    if (!detector) return;
+    try {
+      const event = await detector.detect({ width: 0, height: 0, dataUrl: sample.dataUrl, capturedAt: sample.capturedAt });
+      if (event && typeof event.data === 'object' && event.data !== null) {
+        const stats = event.data as { mean?: number; highlights?: number };
+        if (typeof stats.mean === 'number' && typeof stats.highlights === 'number') {
+          lastLightingRef.current = { mean: stats.mean, highlights: stats.highlights };
+        }
+      }
+    } catch { lastLightingRef.current = null; }
+  }
   const config = useRef<GuidanceConfig | null>(null);
   const queue = useRef(new CameraShotQueue());
   const stableAfter = useRef(0);
@@ -199,7 +227,12 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
           if (signal.aborted) throw new Error('取样已取消');
           commitContext({ ...contextRef.current, capabilities });
           setTuningMessage(capabilities.native ? '系统色彩 · 按镜头能力调整' : '系统色彩 · 当前安装包不支持手动参数');
-          return await captureAnalysisSample(cameraRef.current, queue.current, signal, contextRef.current.zoom, aspectRef.current);
+          const sample = await captureAnalysisSample(cameraRef.current, queue.current, signal, contextRef.current.zoom, aspectRef.current);
+          // Feed the same offline sample through the on-device detectors so the
+          // shutter decision reflects current lighting. Fails open per-detector.
+          await updateSignalRefs(sample);
+          if (mounted.current) refreshShutterDecision();
+          return sample;
         }
         finally { samplingRef.current = false; if (mounted.current) setSampling(false); }
       },
@@ -307,6 +340,7 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
         previousAt = now;
         if (!enabledRef.current || !activeRef.current || !readyRef.current) return;
         const speed = Math.hypot(rotation.x, rotation.y, rotation.z);
+        shakeRef.current = speed;
         executor.current.rotate(rotation, dt, contextRef.current.facing, now);
         travel = speed > 0.12 ? travel + speed * Math.min(0.25, dt) : Math.max(0, travel - 0.008);
         if (speed > 0.12) stableAfter.current = now + GUIDANCE_SETTLE_MS;
@@ -438,6 +472,9 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
     const zoom = contextRef.current.zoom;
     captureRef.current = true; setCapturing(true); cancelZoom(); resetStep(); loop.current?.stop();
     setStatus({ phase: 'waiting', message: '拍摄中，AI 分析已暂停' });
+    // Freeze the offline shutter decision at the moment the shutter fires so the
+    // review screen can show why this frame was advised (lighting/stability).
+    if (mounted.current) refreshShutterDecision();
     try {
       await queue.current.run(async () => {
         if (!mounted.current || !activeRef.current) return;
@@ -467,7 +504,7 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
     }
     return captureAnalysisSample(cameraRef.current, queue.current, signal, contextRef.current.zoom, aspectRef.current);
   }
-  return { context, enabled, autoZoom, adjustingZoom, adjustingParameters, ready, active, capturing, sampling, switching, starting, result, target, executionPhase, status, configMissing, sensorAvailable, tuningMessage, appliedTuning,
-    toggleGuidance, toggleAutoZoom, manualZoom, adjustParameters, changeStyle, changeMode, flipCamera, cameraReady, cameraError, capture, confirmAdjustment, sampleFrame,
+  return { context, enabled, autoZoom, adjustingZoom, adjustingParameters, ready, active, capturing, sampling, switching, starting, result, target, executionPhase, status, configMissing, sensorAvailable, tuningMessage, appliedTuning, shutterDecision,
+    toggleGuidance, toggleAutoZoom, manualZoom, adjustParameters, changeStyle, changeMode, flipCamera, cameraReady, cameraError, capture, confirmAdjustment, sampleFrame, refreshShutterDecision,
     refresh: () => invalidate('正在重新规划当前画面') };
 }
