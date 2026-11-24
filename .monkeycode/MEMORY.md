@@ -60,3 +60,14 @@
   - Structure: pure functions (`permissions.ts`, `gradle.ts`) + thin mod wiring (`withDramaNative.ts`), wrapped in `createRunOncePlugin` for idempotency (repeated prebuild does not double-inject).
   - The two local native modules link themselves via `expo-module.config.json`; the plugin only fills permissions and dependencies.
   - `@expo/config-plugins` is a transitive dep (SDK 52, not in package.json). Plugin unit tests run the mod with an identity `nextMod` and assert on the returned `modResults`, reading `result.modResults.*` (nested, not `result.*`).
+
+[On-device auto enhancement]
+- Date: 2026-11-23
+- Context: Built offline shutter decision + photo quality guard for "point-and-shoot to great photo"
+- Category: Operations & Deployment
+- Instructions:
+  - Both features run fully offline (no model key) and follow the same pattern: pure decision function + separate collection side that feeds it signals.
+  - `decideShutter` (`src/lib/shutterDecision.ts`): maps `ShutterSignals` (gyro shake, lighting stats, faces) to a `ShutterDecision` (whiteBalance/style/exposure/stability + reasons). WhiteBalance always derives from `CAMERA_STYLE_PRESETS[style].whiteBalance`. Wired into `useCameraGuidance`: gyro listener updates `shakeRef`, the guidance sample runs the lighting detector via `updateSignalRefs`, and `capture()` freezes the decision. Exposed as `shutterDecision` + shown in `ShutterDecisionCard`.
+  - `assessQuality`/`computeQualityStats` (`src/lib/photoQuality.ts`): blur via adjacent-pixel gradient, exposure via mean + highlight ratio, closed eyes via `eyesOpen`. `analyzePhotoQuality` (`photoQualityGuard.ts`) decodes on Web canvas; native/canvas-less degrade to `assessQuality(null, null)` — never blocks saving. `PhotoReview` runs it on mount and shows a retake banner.
+  - All thresholds (`DARK_MEAN`, `BRIGHT_HIGHLIGHTS`, `BLUR_SHARPNESS`, `SHAKY_SHAKE`) are centralised constants awaiting on-device calibration.
+  - Closed-eye collection (Android MLKit landmarks) is a future hook; `assessQuality` already accepts the `eyesOpen` input.

@@ -65,6 +65,15 @@ npx tsc --noEmit
 - 模式与风格插件的 prompt、preset、LUT 数值可被插件覆盖。
 - 第三方可在运行时 `registry.register(plugin)` 增加能力，无需改核心代码。
 
+### 端侧自动增强（离线，零网络）
+
+围绕"随手一拍都能成片"的两道端侧兜底，都不依赖大模型 API：
+
+- **离线快门决策器**（`src/lib/shutterDecision.ts`）：按下快门那一刻，用端侧信号（gyro 抖动 + 采样帧 lighting 检测）本地确定性算出白平衡/风格/曝光提示/手稳提示。纯函数 `decideShutter`，接进 `useCameraGuidance`，快门时冻结决策，`ShutterDecisionCard` 在快门区上方展示。即使没开 AI 指导也生效。
+- **成片质量守护**（`src/lib/photoQuality.ts` + `photoQualityGuard.ts`）：拍完立刻对成片跑模糊（相邻像素梯度）/曝光（亮度+高光）/闭眼检测，明显废片在回顾页提示重拍。纯函数 `assessQuality`，采集侧 `analyzePhotoQuality`（Web canvas 解码），原生/canvas 缺失时降级为不提示、绝不阻塞保存。`PhotoReview` 挂载时跑并显示重拍横幅。
+
+验收：`decideShutter` / `assessQuality` / `computeQualityStats` 纯函数单测覆盖暗光/过曝/正常/人像/手抖/闭眼/信号缺失各分支；真机需标定阈值（`DARK_MEAN`、`BRIGHT_HIGHLIGHTS`、`BLUR_SHARPNESS`、`SHAKY_SHAKE`）。闭眼检测的采集端（Android MLKit landmarks）为后续接入点。
+
 ### 对外分发插件（expo-drama）
 
 `plugins/expo-drama` 是可发布的 Expo config plugin，负责自动链接不覆盖的两项原生配置：
