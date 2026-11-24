@@ -352,9 +352,11 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
       subscriptions.push(Gyroscope.addListener(rotation => {
         const now = Date.now(), dt = (now - previousAt) / 1000;
         previousAt = now;
-        if (!enabledRef.current || !activeRef.current || !readyRef.current) return;
+        // Track the raw shake magnitude unconditionally so the shutter's
+        // stability gate works whether or not AI guidance is switched on.
         const speed = Math.hypot(rotation.x, rotation.y, rotation.z);
         shakeRef.current = speed;
+        if (!enabledRef.current || !activeRef.current || !readyRef.current) return;
         executor.current.rotate(rotation, dt, contextRef.current.facing, now);
         travel = speed > 0.12 ? travel + speed * Math.min(0.25, dt) : Math.max(0, travel - 0.008);
         if (speed > 0.12) stableAfter.current = now + GUIDANCE_SETTLE_MS;
