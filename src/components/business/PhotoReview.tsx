@@ -8,6 +8,7 @@ import { analyzePhotoQuality } from '../../lib/photoQualityGuard';
 import { editPhotoFromInstruction, applyNlEditToPhoto } from '../../lib/nlEdit';
 import { analyzeReferenceGrade, applyReferenceGradeToPhoto } from '../../lib/refColorMatch';
 import { analyzeWhiteBalance, applyWbCorrectionToPhoto } from '../../lib/wbCorrection';
+import { getSceneAdvice, applySceneAdviceToPhoto, type SceneAdvice } from '../../lib/sceneAdvice';
 import { loadDevicePhotos } from '../../lib/media';
 import type { AlbumItem } from '../../lib/album';
 import { toDataUrl } from '../../lib/photoDataUrl';
@@ -41,6 +42,10 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
   const [matchError, setMatchError] = useState<string | null>(null);
   const [correcting, setCorrecting] = useState(false);
   const [correctError, setCorrectError] = useState<string | null>(null);
+  const [advice, setAdvice] = useState<SceneAdvice | null>(null);
+  const [adviceLoading, setAdviceLoading] = useState(false);
+  const [adviceError, setAdviceError] = useState<string | null>(null);
+  const [applyingAdvice, setApplyingAdvice] = useState(false);
   const [strength, setStrength] = useState(1);
   useEffect(() => {
     let cancelled = false;
@@ -50,7 +55,7 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
     });
     return () => { cancelled = true; };
   }, [uri]);
-  useEffect(() => { setEditedUri(null); setEditError(null); setMatchError(null); setCorrectError(null); setRefUri(null); }, [uri]);
+  useEffect(() => { setEditedUri(null); setEditError(null); setMatchError(null); setCorrectError(null); setAdvice(null); setAdviceError(null); setRefUri(null); }, [uri]);
 
   // Applies a natural-language instruction to the photo: the vision model
   // returns a grade + look parameter set, compiled to a LUT and applied. Fails
@@ -131,6 +136,38 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
       setCorrectError('校正未生效，请检查 AI 配置或稍后再试。');
     } finally {
       setCorrecting(false);
+    }
+  }
+
+  // Scene-aware advice: classify the photo and surface the matching style as a
+  // one-tap suggestion. Composes the existing scene recognition + style table;
+  // fails open with a visible message.
+  async function loadAdvice() {
+    if (adviceLoading || advice) return;
+    setAdviceLoading(true); setAdviceError(null);
+    try {
+      const config = await getActiveAIConfig();
+      const dataUrl = await toDataUrl(displayUri);
+      setAdvice(await getSceneAdvice(config, dataUrl, new AbortController().signal));
+    } catch {
+      setAdviceError('未能识别场景，请检查 AI 配置或稍后再试。');
+    } finally {
+      setAdviceLoading(false);
+    }
+  }
+
+  // Applies the recommended style LUT to the current preview. Fails open — the
+  // preview is kept and a message explains the miss.
+  async function applyAdvice() {
+    if (!advice || applyingAdvice) return;
+    setApplyingAdvice(true); setAdviceError(null);
+    try {
+      const out = await applySceneAdviceToPhoto(displayUri, advice);
+      setEditedUri(out);
+    } catch {
+      setAdviceError('建议未生效，请稍后再试。');
+    } finally {
+      setApplyingAdvice(false);
     }
   }
 
@@ -284,6 +321,36 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
               </Pressable>
             </View>
             {correctError ? <Text style={styles.editError}>{correctError}</Text> : null}
+
+            {/* AI 智能建议：识别场景并一键应用匹配风格 */}
+            <View style={styles.matchRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="获取场景建议"
+                onPress={() => void loadAdvice()}
+                disabled={adviceLoading || !!advice}
+                style={({ pressed }) => [styles.matchToggle, pressed && styles.matchPressed, (adviceLoading || !!advice) && styles.matchDisabled]}
+              >
+                <Ionicons name="bulb-outline" size={13} color={colors.ink} />
+                <Text style={styles.matchToggleText}>{adviceLoading ? '识别中' : advice ? '已识别场景' : 'AI 场景建议'}</Text>
+              </Pressable>
+              {advice ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="应用场景建议"
+                  onPress={() => void applyAdvice()}
+                  disabled={applyingAdvice}
+                  style={({ pressed }) => [styles.matchApply, pressed && styles.matchPressed, applyingAdvice && styles.matchDisabled]}
+                >
+                  <Ionicons name="sparkles-outline" size={13} color={colors.secondaryFixed} />
+                  <Text style={styles.matchApplyText}>{applyingAdvice ? '应用中' : `应用${advice.style}`}</Text>
+                </Pressable>
+              ) : null}
+            </View>
+            {advice ? (
+              <Text style={styles.adviceNote}>{advice.rationale}</Text>
+            ) : null}
+            {adviceError ? <Text style={styles.editError}>{adviceError}</Text> : null}
 
             {/* 强度：把 AI 增强效果向中性回调，避免过度处理 */}
             <View style={styles.strengthRow}>
@@ -634,6 +701,12 @@ const styles = StyleSheet.create({
   },
   strengthSegmentTextActive: {
     color: colors.secondaryFixed,
+  },
+  adviceNote: {
+    color: colors.muted,
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 6,
   },
   actions: {
     flexDirection: 'row',

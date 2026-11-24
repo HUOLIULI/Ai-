@@ -23,6 +23,12 @@ jest.mock('../../../lib/wbCorrection', () => ({
   analyzeWhiteBalance: jest.fn(async () => ({ cast: '偏暖', exposure: '过曝', severity: 0.6 })),
   applyWbCorrectionToPhoto: jest.fn(async (_uri: string) => 'corrected-uri'),
 }));
+jest.mock('../../../lib/sceneAdvice', () => ({
+  getSceneAdvice: jest.fn(async () => ({
+    scene: '逆光', mode: '风景', style: '清透', exposureHint: '压低曝光', rationale: '检测到逆光，建议清透风格。', confidence: 0.9,
+  })),
+  applySceneAdviceToPhoto: jest.fn(async (_uri: string) => 'advised-uri'),
+}));
 jest.mock('../../../lib/media', () => ({
   loadDevicePhotos: jest.fn(async () => [
     { uri: 'ref-a', title: '参考A', tag: '设备相册' },
@@ -98,5 +104,24 @@ describe('PhotoReview white-balance correction', () => {
     render(<PhotoReview uri="photo-uri" onRetake={() => {}} onSave={() => {}} saving={false} />);
     fireEvent.press(screen.getByLabelText('自动校正白平衡'));
     expect(await screen.findByText('校正未生效，请检查 AI 配置或稍后再试。')).toBeDefined();
+  });
+});
+
+describe('PhotoReview scene advice', () => {
+  it('loads a scene suggestion and applies the recommended style', async () => {
+    render(<PhotoReview uri="photo-uri" onRetake={() => {}} onSave={() => {}} saving={false} />);
+    fireEvent.press(screen.getByLabelText('获取场景建议'));
+    const apply = await screen.findByLabelText('应用场景建议');
+    expect(await screen.findByText('检测到逆光，建议清透风格。')).toBeDefined();
+    fireEvent.press(apply);
+    expect(await screen.findByLabelText('应用场景建议')).toBeDefined();
+  });
+
+  it('shows a message when scene recognition fails', async () => {
+    const { getSceneAdvice } = require('../../../lib/sceneAdvice');
+    (getSceneAdvice as jest.Mock).mockRejectedValueOnce(new Error('boom'));
+    render(<PhotoReview uri="photo-uri" onRetake={() => {}} onSave={() => {}} saving={false} />);
+    fireEvent.press(screen.getByLabelText('获取场景建议'));
+    expect(await screen.findByText('未能识别场景，请检查 AI 配置或稍后再试。')).toBeDefined();
   });
 });
