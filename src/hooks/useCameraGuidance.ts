@@ -17,7 +17,7 @@ import { applyCameraTuning, needsCameraTuning, readCameraCapabilities, resetCame
 import { applyStyleFilterToPhoto } from '../plugin/builtin';
 import { pluginRegistry } from '../plugin/registry';
 import { decideShutter, type ShutterDecision, type ShutterSignals } from '../lib/shutterDecision';
-import { waitForStability, STABILITY_WAIT_MS } from '../lib/captureStability';
+import { waitForStability, isShakeStable, STABILITY_WAIT_MS } from '../lib/captureStability';
 import type { CameraCapabilities, CameraMode, CameraStyle, Guidance, GuidanceConfig, GuidanceContext, GuidanceResult, GuidanceStatus, WhiteBalance } from '../types/guidance';
 
 type AppliedTuning = { aperture: number | null; whiteBalance: WhiteBalance | 'keep'; contrast: number | null };
@@ -506,11 +506,13 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
     try {
       await queue.current.run(async () => {
         if (!mounted.current || !activeRef.current) return;
-        // Stability gate: when the frozen decision flags a shaky device, wait
-        // briefly for the hand to settle before firing to avoid blur. Bounded by
-        // STABILITY_WAIT_MS so a restless hand still captures; unknown/invalid
-        // readings never block.
-        const gate = shutterDecision?.stability.level === 'shaky';
+        // Stability gate: when the live gyro reading shows a shaky hand, wait
+        // briefly for it to settle before firing to avoid blur. Read shakeRef
+        // directly rather than the frozen decision — refreshRef above updates
+        // state, which won't be reflected in this render's shutterDecision
+        // closure. Bounded by STABILITY_WAIT_MS so a restless hand still
+        // captures; unknown/invalid readings count as stable and never block.
+        const gate = !isShakeStable(shakeRef.current);
         if (gate) {
           const deadline = Date.now() + STABILITY_WAIT_MS;
           await waitForStability(
