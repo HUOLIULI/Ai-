@@ -184,6 +184,8 @@ export function CameraCapture({ cameraRef, onClose, onCapture, onConfigure, onOp
             onAutoZoom={guide.toggleAutoZoom}
             autoColorGrade={guide.autoColorGrade}
             onToggleColorGrade={guide.toggleAutoColorGrade}
+            autoBeauty={guide.autoBeauty}
+            onToggleBeauty={guide.toggleAutoBeauty}
             onRefresh={guide.refresh}
             onConfigure={onConfigure}
             poseEnabled={pose.enabled}

@@ -41,3 +41,22 @@ describe('CameraGuidanceControls color grade toggle', () => {
     expect(screen.queryByLabelText('AI 调色')).toBeNull();
   });
 });
+
+describe('CameraGuidanceControls beauty toggle', () => {
+  it('shows the AI beauty toggle when the handler is provided', () => {
+    renderControls({ autoBeauty: false, onToggleBeauty: jest.fn() });
+    expect(screen.getByLabelText('AI 美颜')).toBeDefined();
+  });
+
+  it('fires the beauty toggle handler on press', () => {
+    const onToggleBeauty = jest.fn();
+    renderControls({ autoBeauty: false, onToggleBeauty, disabled: false });
+    fireEvent.press(screen.getByLabelText('AI 美颜'));
+    expect(onToggleBeauty).toHaveBeenCalledTimes(1);
+  });
+
+  it('hides the beauty toggle when no handler is provided', () => {
+    renderControls({});
+    expect(screen.queryByLabelText('AI 美颜')).toBeNull();
+  });
+});

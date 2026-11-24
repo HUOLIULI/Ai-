@@ -18,6 +18,8 @@ import { applyStyleFilterToPhoto } from '../plugin/builtin';
 import { applyLutSpecToPhoto } from '../plugin/builtin/filters';
 import { analyzeColorGrade } from '../lib/colorGradeAi';
 import { colorGradeParamsToLut } from '../lib/colorGrade';
+import { analyzeBeauty } from '../lib/beautyAi';
+import { beautyParamsToLut } from '../lib/beauty';
 import { pluginRegistry } from '../plugin/registry';
 import { decideShutter, type ShutterDecision, type ShutterSignals } from '../lib/shutterDecision';
 import { waitForStability, isShakeStable, STABILITY_WAIT_MS } from '../lib/captureStability';
@@ -80,6 +82,11 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
   // as-is so capture never blocks on the model.
   const [autoColorGrade, setAutoColorGrade] = useState(false);
   const autoColorGradeRef = useRef(false);
+  // Auto beauty: when on, a captured portrait is sent through the vision model
+  // for a retouching pass (skin softening / brightening / warmth) and the
+  // returned look is compiled into a LUT and applied on top. Fails open.
+  const [autoBeauty, setAutoBeauty] = useState(false);
+  const autoBeautyRef = useRef(false);
   // Stable identity for the refresh callback so effects and the guidance loop
   // can call it without it changing identity across renders.
   const refreshRef = useRef<() => void>(() => {});
@@ -423,6 +430,9 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
   function toggleAutoColorGrade() {
     autoColorGradeRef.current = !autoColorGradeRef.current; setAutoColorGrade(autoColorGradeRef.current);
   }
+  function toggleAutoBeauty() {
+    autoBeautyRef.current = !autoBeautyRef.current; setAutoBeauty(autoBeautyRef.current);
+  }
   function manualZoom(value: number) {
     autoRef.current = false; setAutoZoom(false); cancelZoom();
     if (busyRef.current) loop.current?.pause('变焦已改变，请完成调整后重新规划');
@@ -554,6 +564,16 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
           } catch { /* keep the un-graded photo */ }
           if (!mounted.current || !activeRef.current) { await removeSampleFile(filtered); return; }
         }
+        // Optional AI beauty: soften skin / brighten / warm the portrait via a
+        // model pass compiled into a LUT, applied on top of everything else.
+        // Fails open on any error.
+        if (autoBeautyRef.current && config.current && gradeDataUrl) {
+          try {
+            const look = await analyzeBeauty(config.current, gradeDataUrl, new AbortController().signal);
+            filtered = await applyLutSpecToPhoto(filtered, beautyParamsToLut(look));
+          } catch { /* keep the un-beautified photo */ }
+          if (!mounted.current || !activeRef.current) { await removeSampleFile(filtered); return; }
+        }
         onCapture(filtered);
       });
     } catch { if (mounted.current) setStatus({ phase: 'error', message: '拍摄失败，请稍后重试。' }); }
@@ -601,7 +621,7 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
     // stable in behavior; including it would re-run the effect every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shutterDecision, autoFlash]);
-  return { context, enabled, autoZoom, adjustingZoom, adjustingParameters, ready, active, capturing, sampling, switching, starting, result, target, executionPhase, status, configMissing, sensorAvailable, tuningMessage, appliedTuning, shutterDecision, autoStyle, autoFlash, autoColorGrade,
-    toggleGuidance, toggleAutoZoom, toggleAutoStyle, toggleAutoFlash, toggleAutoColorGrade, manualZoom, adjustParameters, changeStyle, changeMode, flipCamera, cameraReady, cameraError, capture, confirmAdjustment, sampleFrame, refreshShutterDecision,
+  return { context, enabled, autoZoom, adjustingZoom, adjustingParameters, ready, active, capturing, sampling, switching, starting, result, target, executionPhase, status, configMissing, sensorAvailable, tuningMessage, appliedTuning, shutterDecision, autoStyle, autoFlash, autoColorGrade, autoBeauty,
+    toggleGuidance, toggleAutoZoom, toggleAutoStyle, toggleAutoFlash, toggleAutoColorGrade, toggleAutoBeauty, manualZoom, adjustParameters, changeStyle, changeMode, flipCamera, cameraReady, cameraError, capture, confirmAdjustment, sampleFrame, refreshShutterDecision,
     refresh: () => invalidate('正在重新规划当前画面') };
 }
