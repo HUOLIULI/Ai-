@@ -83,7 +83,7 @@ Drama is an AI photography guidance app built with **Expo + React Native**, targ
 | **Visible Trajectory Lines** | The viewfinder shows the frame center, dotted path, and target circle. Follow instructions to align the center with the target circle. Control labels stay outside the preview frame. |
 | **Instant Ready Indicator** | When framing requirements and parameter tuning are met and held steady for ~**0.8s**, green framing corners, pulsing ring, shutter highlight, and "Ready to Capture" appear with haptic feedback. |
 | **3 Shooting Modes** | Portrait (subject-background harmony), Landscape (visual center, leading lines, depth), Night (ambient light, contrast, stability). Each mode uses dedicated prompts. |
-| **4 Aesthetic Styles** | Clear, Apricot, Mint, and Vintage Film participate in AI composition reasoning (currently prompt-based aesthetic preferences rather than post-processing filters). |
+| **4 Aesthetic Styles** | Clear, Apricot, Mint, and Vintage Film participate in AI composition reasoning and are applied to the captured photo as LUT color grades through a shared filter engine (native bitmap module on Android, canvas on web). |
 | **Hardware-Adaptive Parameters** | Supports digital zoom and flashlight; custom Android native module adjusts white balance presets and contrast based on device capabilities. Aperture and auto-exposure remain managed by the system. |
 | **BYO Model Services** | Enter your API key, HTTPS base URL, and model name directly in the app. Supports Chat Completions compatible vision endpoints. |
 | **Capture & Save** | Flip between front and rear cameras, preview captured shots, retake, or save to system media gallery. |
@@ -178,6 +178,32 @@ flowchart LR
 For pure lateral translation, forward/backward distance, or when rotation sensors are unavailable, adjust as instructed and tap **"Adjusted, Confirm in Position"**. Device gyro/rotation sensors cannot reliably measure translational displacement in centimeters.
 
 Noticeable movements revoke the ready state; sensor-tracked trajectories recover locally once realigned. Changing mode, style, lens, or tapping "Replan" triggers a fresh plan. Guidance does not loop automatically upon errors, timeouts, or incomplete movement.
+
+---
+
+## ✨ AI Enhancements
+
+On top of composition guidance, Drama applies a set of optional, online AI passes that turn a technically-correct shot into a more finished one. They all run through the same vision model you configure, reuse a shared LUT engine, and **fail open** — if the model call or pixel backend is unavailable, the original photo is kept and capture never blocks.
+
+| Enhancement | What it does | Where |
+| :--- | :--- | :--- |
+| **AI Scene Recognition** | Classifies the frame (portrait / landscape / night / food / backlit / macro) and pre-configures the matching mode and style when confidence is high. | Viewfinder, "AI Scene" toggle |
+| **Rule-of-Thirds Composition** | Snaps the AI aim point to the nearest thirds intersection and overlays a thirds grid in the viewfinder. | Viewfinder |
+| **AI Color Grade** | A "colorist" pass returns bounded grade parameters (temperature / exposure / contrast / saturation / tint), compiled into a LUT over the photo. | Capture flow, "AI Color" toggle |
+| **AI Beauty** | Softens skin, brightens, and warms portraits via bounded look parameters compiled into a LUT. | Capture flow, "AI Beauty" toggle |
+| **Natural-Language Edit** | Type a one-line instruction (e.g. "make the sky bluer") on the review screen; the model returns grade + beauty parameters that are compiled and applied to the shot. | Photo review screen |
+
+### How it works
+
+Every enhancement follows one pattern: the vision model returns a handful of **bounded numeric parameters** (constrained by a JSON schema), and a pure compiler maps those onto a `LutSpec` (color matrix + tone curve + temperature) that a shared LUT engine applies pixel-by-pixel. This keeps each pass testable and consistent with the built-in style filters.
+
+The LUT renders through a platform-adaptive backend: a native Android bitmap module (`modules/image-filter`) on Android, and an HTML canvas backend on the web. Where no backend exists the photo passes through unchanged.
+
+### Landing boundary
+
+These passes cover what a vision model + per-pixel LUT can genuinely do. Features that need **native computational photography or generative/segmentation models** — HDR, night denoise, super-resolution, object removal, portrait bokeh (cutout), and Live Photo — are **not** simulated here; they are left for a future native pipeline rather than faked with a LUT.
+
+> AI Enhancements require a configured vision model and incur provider usage fees. Each pass is a separate toggle you can turn off independently.
 
 ---
 
