@@ -12,9 +12,25 @@ type MlkitModule = {
     success: boolean;
     error: string | null;
   } | undefined>;
+  initialize: (options?: { classificationMode?: boolean; performanceMode?: string }) => Promise<unknown>;
 };
 
 let mlkit: MlkitModule | null | undefined;
+// MLKit's eye-open probabilities are only populated when the shared detector is
+// initialized with classification mode on. We flip it on lazily, once; faceBox
+// only reads the frame box, so the extra classifications are harmless there.
+let classificationEnsured = false;
+
+async function ensureClassification(module: MlkitModule): Promise<void> {
+  if (classificationEnsured) return;
+  try {
+    await module.initialize({ classificationMode: true, performanceMode: 'fast' });
+  } catch {
+    // If re-initialization fails the detector keeps its prior config; eye
+    // probabilities may stay null and the closed-eye dimension safely skips.
+  }
+  classificationEnsured = true;
+}
 
 function loadMlkit(): MlkitModule | null {
   if (mlkit !== undefined) return mlkit;
@@ -48,6 +64,7 @@ async function detectEyesOpen(uri: string): Promise<boolean | null> {
   const module = loadMlkit();
   if (!module) return null;
   try {
+    await ensureClassification(module);
     const result = await module.detectFaces(uri);
     if (!result?.success || result.faces.length === 0) return null;
     const face = result.faces.reduce((a, b) => a, result.faces[0]);
