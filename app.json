@@ -49,7 +49,8 @@
           "photosPermission": "允许Drama相机读取你的相册。",
           "savePhotosPermission": "允许Drama相机保存照片到相册。"
         }
-      ]
+      ],
+      "./plugins/expo-drama"
     ],
     "extra": {
       "router": {

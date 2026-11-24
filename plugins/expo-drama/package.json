@@ -1,0 +1,11 @@
+{
+  "name": "expo-drama",
+  "version": "1.0.0",
+  "description": "Expo config plugin distributing Drama's native camera capabilities (install permission + MLKit face detection).",
+  "main": "app.plugin.js",
+  "private": true,
+  "keywords": ["expo", "config-plugin", "expo-config-plugin"],
+  "peerDependencies": {
+    "@expo/config-plugins": "*"
+  }
+}
