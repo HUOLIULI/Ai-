@@ -10,7 +10,7 @@ function fakeImageData(width: number, height: number, fill = 128): ImageData {
 }
 
 describe('LUTS', () => {
-  it('ships four style LUTs with valid matrices', () => {
+  it('ships the four original style LUTs with valid near-identity matrices', () => {
     for (const style of ['清透', '奶杏', '薄荷', '胶片'] as CameraStyle[]) {
       const lut = LUTS[style];
       expect(lut).toBeDefined();
@@ -24,6 +24,38 @@ describe('LUTS', () => {
 
   it('film LUT has an S-curve (more than 2 control points)', () => {
     expect(LUTS['胶片'].curve?.length).toBeGreaterThan(2);
+  });
+});
+
+describe('film style LUTs', () => {
+  it('ships every declared camera style as a LUT', () => {
+    for (const style of ['清透', '奶杏', '薄荷', '胶片', '黑白', '港风', '日系', '复古'] as CameraStyle[]) {
+      expect(LUTS[style]).toBeDefined();
+      expect(LUTS[style].matrix).toHaveLength(9);
+    }
+  });
+
+  it('monochrome desaturates a colored frame to equal channels', () => {
+    const frame = fakeImageData(1, 1, 128);
+    // Make the pixel colored so desaturation is observable.
+    frame.data[0] = 200; frame.data[1] = 100; frame.data[2] = 50; frame.data[3] = 255;
+    const out = applyLutToImageData(frame, LUTS['黑白']);
+    expect(out.data[0]).toBe(out.data[1]);
+    expect(out.data[1]).toBe(out.data[2]);
+  });
+
+  it('Japanese pastel lifts the black point for an airy low-contrast look', () => {
+    const frame = fakeImageData(1, 1, 0);
+    const out = applyLutToImageData(frame, LUTS['日系']);
+    // The curve lifts pure black well above zero.
+    expect(out.data[0]).toBeGreaterThan(10);
+  });
+
+  it('faded retro lifts blacks and mutes highlights versus pure black/white', () => {
+    const black = applyLutToImageData(fakeImageData(1, 1, 0), LUTS['复古']);
+    const white = applyLutToImageData(fakeImageData(1, 1, 255), LUTS['复古']);
+    expect(black.data[0]).toBeGreaterThan(10); // lifted blacks
+    expect(white.data[0]).toBeLessThan(255); // muted highlights
   });
 });
 

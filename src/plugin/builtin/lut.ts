@@ -42,4 +42,36 @@ export const LUTS: Record<string, LutSpec> = {
     temperature: 120,
     grain: 0.15,
   },
+  // Monochrome: desaturate to luma, punchy contrast curve.
+  黑白: {
+    name: '黑白',
+    matrix: [0.3, 0.59, 0.11, 0.3, 0.59, 0.11, 0.3, 0.59, 0.11],
+    curve: [[0, 0], [0.25, 0.18], [0.75, 0.82], [1, 1]],
+    temperature: 0,
+    grain: 0.1,
+  },
+  // Hong Kong cinematic: teal shadows, warm highlights, teal-orange split.
+  港风: {
+    name: '港风',
+    matrix: [1.08, 0, -0.04, 0, 0.98, 0.02, -0.02, 0.02, 1.04],
+    curve: [[0, 0.04], [0.3, 0.26], [0.7, 0.74], [1, 0.96]],
+    temperature: -60,
+    grain: 0.08,
+  },
+  // Japanese pastel: airy lift, low contrast, soft pink cast.
+  日系: {
+    name: '日系',
+    matrix: [1.03, 0.01, 0, 0, 1.0, 0, 0.01, 0, 1.02],
+    curve: [[0, 0.1], [0.5, 0.58], [1, 0.98]],
+    temperature: 60,
+    grain: 0,
+  },
+  // Faded retro: lifted blacks, muted saturation, warm old-film cast.
+  复古: {
+    name: '复古',
+    matrix: [1.0, 0, 0, 0, 0.97, 0, 0, 0, 0.9],
+    curve: [[0, 0.12], [0.5, 0.52], [1, 0.9]],
+    temperature: 180,
+    grain: 0.12,
+  },
 };

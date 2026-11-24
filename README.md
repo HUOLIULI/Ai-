@@ -83,7 +83,7 @@ Drama is an AI photography guidance app built with **Expo + React Native**, targ
 | **Visible Trajectory Lines** | The viewfinder shows the frame center, dotted path, and target circle. Follow instructions to align the center with the target circle. Control labels stay outside the preview frame. |
 | **Instant Ready Indicator** | When framing requirements and parameter tuning are met and held steady for ~**0.8s**, green framing corners, pulsing ring, shutter highlight, and "Ready to Capture" appear with haptic feedback. |
 | **3 Shooting Modes** | Portrait (subject-background harmony), Landscape (visual center, leading lines, depth), Night (ambient light, contrast, stability). Each mode uses dedicated prompts. |
-| **4 Aesthetic Styles** | Clear, Apricot, Mint, and Vintage Film participate in AI composition reasoning and are applied to the captured photo as LUT color grades through a shared filter engine (native bitmap module on Android, canvas on web). |
+| **8 Aesthetic Styles** | Clear, Apricot, Mint, Vintage Film, Monochrome, Hong Kong, Japanese, and Retro participate in AI composition reasoning and are applied to the captured photo as LUT color grades through a shared filter engine (native bitmap module on Android, canvas on web). |
 | **Hardware-Adaptive Parameters** | Supports digital zoom and flashlight; custom Android native module adjusts white balance presets and contrast based on device capabilities. Aperture and auto-exposure remain managed by the system. |
 | **BYO Model Services** | Enter your API key, HTTPS base URL, and model name directly in the app. Supports Chat Completions compatible vision endpoints. |
 | **Capture & Save** | Flip between front and rear cameras, preview captured shots, retake, or save to system media gallery. |

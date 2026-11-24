@@ -18,6 +18,10 @@ export const CAMERA_STYLES: Record<CameraStyle, string> = {
   奶杏: '温暖奶油色调、柔和侧光、亲近松弛的构图，避免杂乱背景。',
   薄荷: '清新轻盈、适当留白、自然绿色与低饱和环境，保持主体突出。',
   胶片: '有故事感的环境构图、自然光影层次、克制的留白，避免刻意摆拍。',
+  黑白: '高对比单色、强调光影结构与线条，适合街拍与硬光人像。',
+  港风: '青橙电影感、暗部偏青、高光偏暖，浓郁氛围与夜色霓虹。',
+  日系: '低反差粉调、通透柔和、轻微过曝的空气感，适合日常与人像。',
+  复古: '褪色暖旧、暗部上浮、低饱和，模拟老胶片褪色质感。',
 };
 
 // Hardware presets behind the styles. Values follow the public conventions of
@@ -29,6 +33,10 @@ export const CAMERA_STYLE_PRESETS: Record<CameraStyle, { whiteBalance: WhiteBala
   奶杏: { whiteBalance: 'cloudy', contrast: 0.9 },
   薄荷: { whiteBalance: 'fluorescent', contrast: 1.06 },
   胶片: { whiteBalance: 'daylight', contrast: 0.95 },
+  黑白: { whiteBalance: 'daylight', contrast: 1.1 },
+  港风: { whiteBalance: 'tungsten', contrast: 1.05 },
+  日系: { whiteBalance: 'cloudy', contrast: 0.85 },
+  复古: { whiteBalance: 'daylight', contrast: 0.88 },
 };
 
 export const GUIDANCE_SYSTEM_PROMPT = `你是手机摄影构图助手。用户只提交一次当前画面。你须一次给出可完成的构图终点与相机参数；客户端用传感器辅助对准并停稳800ms后直接提示拍照，不会再次请求模型复核。不能依赖“下一轮再看”才能完成的方案。

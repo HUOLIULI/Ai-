@@ -119,7 +119,7 @@ npx tsc --noEmit
 - `defaultFilterBackend`（`defaultBackend.ts`）：平台自适应选择器——Android→native bitmap、web/iOS→canvas。`applyLutSpecToPhoto`、`applyStyleFilterToPhoto`、回顾页 NL 修图都经它渲染，原生端真正出图，无后端时保留原图。调用方仍可显式传后端覆盖。
 - fail-open：滤镜加载或处理失败一律返回原图 uri，绝不阻塞拍照；`applyStyleFilterToPhoto` 从 registry 取滤镜，第三方同 id 覆盖生效。
 - `styleFilter()` / `jsFilterBackend`：JS 后端入口，统一 `FilterBackend` 接口；原生走 gpu 类型。
-- LUT 数值预置：清透、奶杏、薄荷、胶片四套风格。
+- LUT 数值预置：清透、奶杏、薄荷、胶片 + 黑白、港风、日系、复古共八套风格。
 
 ### 应用更新完整性
 
@@ -135,5 +135,5 @@ npx tsc --noEmit
 
 ### 真机待办（本轮未完成）
 
-- 滤镜引擎像素后端已接入 Web canvas（`canvasFilterBackend`）与 Android 原生 bitmap（`modules/image-filter` + `nativeFilterBackend`，经平台自适应 `defaultFilterBackend`）；成片需真机比对四套风格 + AI 调色/美颜的色偏、对比、颗粒强度，并确认原生 `ImageFilter` 模块在 APK 中链接、`requireOptionalNativeModule('ImageFilter')` 拿得到（Expo Go 不支持，需重新构建 Android 开发包或 APK）。
+- 滤镜引擎像素后端已接入 Web canvas（`canvasFilterBackend`）与 Android 原生 bitmap（`modules/image-filter` + `nativeFilterBackend`，经平台自适应 `defaultFilterBackend`）；成片需真机比对八套风格 + AI 调色/美颜的色偏、对比、颗粒强度，并确认原生 `ImageFilter` 模块在 APK 中链接、`requireOptionalNativeModule('ImageFilter')` 拿得到（Expo Go 不支持，需重新构建 Android 开发包或 APK）。
 - `modules/image-filter` Android bitmap 后端、`plugins/expo-drama` 对外插件、MLKit 真机人脸框精度，均需 Android SDK 编译与真机验证。

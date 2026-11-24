@@ -5,10 +5,10 @@ import { STYLE_PLUGINS } from '../styles';
 import type { CameraMode, CameraStyle } from '../../../types/guidance';
 
 const ALL_MODES: CameraMode[] = ['人像', '风景', '夜景'];
-const ALL_STYLES: CameraStyle[] = ['清透', '奶杏', '薄荷', '胶片'];
+const ALL_STYLES: CameraStyle[] = ['清透', '奶杏', '薄荷', '胶片', '黑白', '港风', '日系', '复古'];
 
 describe('builtin plugins', () => {
-  it('registers 3 modes and 4 styles', () => {
+  it('registers 3 modes and every declared style', () => {
     const reg = new PluginRegistry();
     registerBuiltinPlugins(reg);
     expect(reg.modes()).toHaveLength(ALL_MODES.length);
@@ -41,7 +41,7 @@ describe('builtin plugins', () => {
   it('registers one filter plugin per style LUT', () => {
     const reg = new PluginRegistry();
     registerBuiltinPlugins(reg);
-    expect(reg.filters()).toHaveLength(4);
+    expect(reg.filters()).toHaveLength(ALL_STYLES.length);
     expect(reg.filter('filter-清透')).not.toBeNull();
   });
 });

@@ -1,6 +1,6 @@
 import type { AIProfile, AIProvider } from './ai';
 
-export type CameraStyle = '清透' | '奶杏' | '薄荷' | '胶片';
+export type CameraStyle = '清透' | '奶杏' | '薄荷' | '胶片' | '黑白' | '港风' | '日系' | '复古';
 export type CameraMode = '人像' | '风景' | '夜景';
 export type WhiteBalance = 'auto' | 'daylight' | 'cloudy' | 'tungsten' | 'fluorescent';
 export type CameraCapabilities = { native: boolean; cameraId: string; apertures: number[]; contrast: boolean; whiteBalance: WhiteBalance[] };
