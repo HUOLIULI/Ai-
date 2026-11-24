@@ -284,12 +284,16 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
       appListener.remove(); layoutListener.remove();
       if (Platform.OS === 'web' && typeof document !== 'undefined') document.removeEventListener('visibilitychange', visibility);
     };
+    // Intentionally empty deps: the effect wires one app-lifetime subscription;
+    // the functions it calls read refs, so adding them would re-subscribe on
+    // every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (!enabled || !active || Platform.OS === 'web') return;
     let disposed = false;
-    const subscriptions: Array<{ remove: () => void }> = [];
+    const subscriptions: { remove: () => void }[] = [];
     let previousAt = Date.now();
     let travel = 0;
     void Gyroscope.isAvailableAsync().then(available => {
@@ -319,6 +323,9 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
       }));
     }).catch(() => undefined);
     return () => { disposed = true; subscriptions.forEach(item => item.remove()); };
+    // Intentionally omit moved/syncExecution: they are hoisted function
+    // declarations that read refs, safe to call across renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, active]);
 
   async function toggleGuidance() {

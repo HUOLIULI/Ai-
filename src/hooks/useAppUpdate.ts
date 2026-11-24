@@ -66,7 +66,8 @@ export function useAppUpdate() {
     });
     return () => {
       mounted.current = false;
-      generation.current++;
+      const generationBefore = generation.current;
+      generation.current = generationBefore + 1;
       request.current?.abort();
       autoInstall.current = false;
       subscription.remove();

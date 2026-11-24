@@ -1,6 +1,7 @@
 import { requireOptionalNativeModule } from 'expo-modules-core';
 import type { CameraCapabilities, CameraStyle, Guidance } from '../types/guidance';
 import { CAMERA_STYLE_PRESETS } from '../constants/guidance';
+import { SYSTEM_CAMERA_CAPABILITIES } from '../constants/cameraCapabilities';
 
 type TuningModule = {
   capabilities(facing: string): Promise<CameraCapabilities>;
@@ -8,7 +9,6 @@ type TuningModule = {
   reset(facing: string): Promise<void>;
 };
 const native = requireOptionalNativeModule<TuningModule>('CameraTuning');
-import { SYSTEM_CAMERA_CAPABILITIES } from '../constants/cameraCapabilities';
 
 async function bounded<T>(work: Promise<T>): Promise<T> {
   let timeout: ReturnType<typeof setTimeout>;

@@ -16,9 +16,7 @@ export function validateAIProfile(profile: AIProfile): AIProfile {
   return { apiKey, model, baseUrl };
 }
 
-export type AIMessage = { role: 'system' | 'user'; content: string | Array<
-  { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }
-> };
+export type AIMessage = { role: 'system' | 'user'; content: string | ({ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } })[] };
 
 export class AIRequestError extends Error {
   constructor(message: string, public fatal = false) { super(message); this.name = 'AIRequestError'; }
