@@ -87,6 +87,14 @@ npx tsc --noEmit
 
 验收：调色/美颜的参数归一化与 LUT 编译纯函数单测覆盖越界/缺省/非有限值/中性各分支；`buildXxxMessages`/`parseXxx` 测构造与解析（含格式非法抛错、缺字段降级中性）；controls 测开关渲染/状态/点击/无 handler 隐藏。真机需验证：模型返回参数的观感标定、两次模型往返（调色+美颜同时开）的延迟、以及 `base64: true` 对快门照片体积的影响。
 
+### AI 场景识别与自然语言修图（在线，复用 qwen-vl 通路）
+
+- **AI 智能场景识别**（`src/lib/sceneRecognition.ts` + `sceneAi.ts`）：视觉模型把画面分类到固定场景集（人像/风景/夜景/美食/逆光/微距），`sceneToRecommendation` 纯映射到模式/风格/曝光提示，采样阶段经 `autoScene` 开关在置信度 ≥ `SCENE_CONFIDENCE_MIN=0.6` 时自动切模式与风格（复用现有 `changeMode`/`changeStyle`，fail-open）。UI："AI 场景"开关。
+- **自然语言修图**（`src/lib/nlEdit.ts`）：用户输入一句话（如"把天空调蓝一点"）+ 画面喂给视觉模型，返回调色+美颜两套参数，`applyNlEditToPhoto` 编译成 LUT 依次套到成片（fail-open，绝不毁原图）。回顾页 `PhotoReview` 加"一句话修图"输入框 + 应用按钮，预览图换成修图结果。这是大模型时代的新交互范式，复用现有调色/美颜编译器。
+- 落地边界（诚实声明）：调研清单里 **HDR/夜景降噪/超分辨率/AI 消除/人像虚化(抠图)/Live Photo** 需要**原生计算摄影管线 + 图像生成/分割模型**，纯 JS + LUT 通路做不出真效果，硬做是假象，留待原生后端（`modules/image-filter` GPU、原生 ISP、分割模型）。本轮落地的是视觉模型 + LUT 引擎能覆盖的部分。
+
+验收：场景识别的场景→模式/风格映射覆盖全部场景标签、`normalizeScene` 越界/未知标签/置信度钳制、controls 开关；自然语言修图的 `parseNlEdit` 全量/缺省/越界/格式非法、`applyNlEditToPhoto` fail-open、回顾页输入框渲染与按钮显隐。真机需验证：场景分类准确率、一句话指令的观感、以及模型往返延迟。
+
 ### 对外分发插件（expo-drama）
 
 `plugins/expo-drama` 是可发布的 Expo config plugin，负责自动链接不覆盖的两项原生配置：
