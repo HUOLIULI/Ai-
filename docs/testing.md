@@ -71,6 +71,7 @@ npx tsc --noEmit
 
 - **离线快门决策器**（`src/lib/shutterDecision.ts`）：按下快门那一刻，用端侧信号（gyro 抖动 + 采样帧 lighting 检测）本地确定性算出白平衡/风格/曝光提示/手稳提示。纯函数 `decideShutter`，接进 `useCameraGuidance`，快门时冻结决策，`ShutterDecisionCard` 在快门区上方展示。即使没开 AI 指导也生效。
 - **决策自动落地（自动出片）**：`autoStyle` 开启时，决策建议的风格经 `changeStyle(style, true)` 自动应用（连带 `styleTuning` 落白平衡/对比度），实现完整的"点一下就出片"。风格条首位有"自动"档；手动点具体风格会关掉 autoStyle 把控制权还给用户。刷新回调经 ref 稳定身份，避免 effect 每渲染重跑。
+- **暗光自动补光**：`autoFlash` 开启时，决策判暗光且后置摄像头自动开闪光（前置无闪光，按 facing 守卫）。手动切闪光会关掉 autoFlash；快门决策卡上方有"自动补光"chip 显示状态、可在手动覆盖后重新开启。
 - **成片质量守护**（`src/lib/photoQuality.ts` + `photoQualityGuard.ts`）：拍完立刻对成片跑模糊（相邻像素梯度）/曝光（亮度+高光）/闭眼检测，明显废片在回顾页提示重拍。纯函数 `assessQuality`，采集侧 `analyzePhotoQuality`（Web canvas 解码），原生/canvas 缺失时降级为不提示、绝不阻塞保存。`PhotoReview` 挂载时跑并显示重拍横幅。
 
 验收：`decideShutter` / `assessQuality` / `computeQualityStats` 纯函数单测覆盖暗光/过曝/正常/人像/手抖/闭眼/信号缺失各分支；真机需标定阈值（`DARK_MEAN`、`BRIGHT_HIGHLIGHTS`、`BLUR_SHARPNESS`、`SHAKY_SHAKE`）。闭眼检测的采集端（Android MLKit landmarks）为后续接入点。
