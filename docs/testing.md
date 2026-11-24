@@ -74,7 +74,7 @@ npx tsc --noEmit
 - **暗光自动补光**：`autoFlash` 开启时，决策判暗光且后置摄像头自动开闪光（前置无闪光，按 facing 守卫）。手动切闪光会关掉 autoFlash；快门决策卡上方有"自动补光"chip 显示状态、可在手动覆盖后重新开启。
 - **成片质量守护**（`src/lib/photoQuality.ts` + `photoQualityGuard.ts`）：拍完立刻对成片跑模糊（相邻像素梯度）/曝光（亮度+高光）/闭眼检测，明显废片在回顾页提示重拍。纯函数 `assessQuality`，采集侧 `analyzePhotoQuality`（Web canvas 解码），原生/canvas 缺失时降级为不提示、绝不阻塞保存。`PhotoReview` 挂载时跑并显示重拍横幅。
 
-验收：`decideShutter` / `assessQuality` / `computeQualityStats` 纯函数单测覆盖暗光/过曝/正常/人像/手抖/闭眼/信号缺失各分支；真机需标定阈值（`DARK_MEAN`、`BRIGHT_HIGHLIGHTS`、`BLUR_SHARPNESS`、`SHAKY_SHAKE`）。闭眼检测的采集端（Android MLKit landmarks）为后续接入点。
+验收：`decideShutter` / `assessQuality` / `computeQualityStats` / `eyeStateFromProbabilities` 纯函数单测覆盖暗光/过曝/正常/人像/手抖/闭眼/信号缺失各分支；真机需标定阈值（`DARK_MEAN`、`BRIGHT_HIGHLIGHTS`、`BLUR_SHARPNESS`、`SHAKY_SHAKE`、`EYE_OPEN_THRESHOLD`）。闭眼采集端已接：`eyeStateFromProbabilities` 从 MLKit 双眼开合概率判定（任一开即视为开，缺概率安全降级），Android 上 `analyzePhotoQuality` 跑 MLKit 取眼睛状态、Web 上 canvas 出模糊/曝光，平台维度互补、各自 fail-open。注意 MLKit 闭眼概率需 `classificationMode`，默认未开时概率为 null、闭眼维度安全跳过。
 
 ### 对外分发插件（expo-drama）
 
