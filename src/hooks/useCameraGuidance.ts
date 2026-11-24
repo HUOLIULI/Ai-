@@ -17,6 +17,7 @@ import { applyCameraTuning, needsCameraTuning, readCameraCapabilities, resetCame
 import { applyStyleFilterToPhoto } from '../plugin/builtin';
 import { pluginRegistry } from '../plugin/registry';
 import { decideShutter, type ShutterDecision, type ShutterSignals } from '../lib/shutterDecision';
+import { waitForStability, STABILITY_WAIT_MS } from '../lib/captureStability';
 import type { CameraCapabilities, CameraMode, CameraStyle, Guidance, GuidanceConfig, GuidanceContext, GuidanceResult, GuidanceStatus, WhiteBalance } from '../types/guidance';
 
 type AppliedTuning = { aperture: number | null; whiteBalance: WhiteBalance | 'keep'; contrast: number | null };
@@ -505,6 +506,19 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
     try {
       await queue.current.run(async () => {
         if (!mounted.current || !activeRef.current) return;
+        // Stability gate: when the frozen decision flags a shaky device, wait
+        // briefly for the hand to settle before firing to avoid blur. Bounded by
+        // STABILITY_WAIT_MS so a restless hand still captures; unknown/invalid
+        // readings never block.
+        const gate = shutterDecision?.stability.level === 'shaky';
+        if (gate) {
+          const deadline = Date.now() + STABILITY_WAIT_MS;
+          await waitForStability(
+            () => shakeRef.current,
+            () => Date.now() < deadline,
+            () => !mounted.current || !activeRef.current,
+          );
+        }
         const picture = await cameraRef.current?.takePictureAsync({ quality: 0.9, skipProcessing: false });
         if (!picture?.uri) throw new Error('没有获取到照片');
         if (!mounted.current || !activeRef.current) { await removeSampleFile(picture.uri); return; }

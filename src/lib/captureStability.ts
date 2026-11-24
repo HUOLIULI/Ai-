@@ -18,3 +18,16 @@ export function isShakeStable(shake: number | null, threshold: number = STABLE_S
   if (shake === null || !Number.isFinite(shake)) return true;
   return shake <= threshold;
 }
+
+// Poll for a steady hand until it settles, the deadline passes, or capture is
+// cancelled — whichever comes first. Pure control flow: the shake source, the
+// deadline check, and the cancel check are injected so the loop is testable.
+export async function waitForStability(
+  getShake: () => number | null,
+  withinDeadline: () => boolean,
+  cancelled: () => boolean,
+): Promise<void> {
+  while (withinDeadline() && !cancelled() && !isShakeStable(getShake())) {
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+}
