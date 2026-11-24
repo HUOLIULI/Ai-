@@ -338,6 +338,13 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
 
             <Text style={styles.note}>保存到相册后将自动继续拍摄，也可以重拍一次。</Text>
 
+            {/* AI 增强工具区：分区标题建立视觉层次 */}
+            <View style={styles.sectionHead}>
+              <View style={styles.sectionAccent} />
+              <Text style={styles.sectionTitle}>AI 增强</Text>
+              <Text style={styles.sectionHint}>调色 · 修图 · 构图 · 质感</Text>
+            </View>
+
             {/* 一键智能增强：场景风格 + 白平衡校正，一次搞定 */}
             <Pressable
               accessibilityRole="button"
@@ -490,13 +497,29 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
             </View>
             {score ? (
               <View style={styles.scoreCard}>
-                <Text style={styles.scoreOverall}>总分 {score.overall}</Text>
+                <View style={styles.scoreHead}>
+                  <View style={styles.scoreRing}>
+                    <Text style={styles.scoreRingValue}>{score.overall}</Text>
+                    <Text style={styles.scoreRingUnit}>分</Text>
+                  </View>
+                  <View style={styles.scoreHeadText}>
+                    <Text style={styles.scoreHeadTitle}>AI 综合评分</Text>
+                    <Text style={styles.scoreHeadSub}>
+                      {score.overall >= 80 ? '很出片，值得保留' : score.overall >= 60 ? '不错，还有提升空间' : '建议重拍或再修图'}
+                    </Text>
+                  </View>
+                </View>
                 <View style={styles.scoreDims}>
                   {SCORE_DIMENSIONS.map((dim) => (
                     <View key={dim} style={styles.scoreDimRow}>
                       <Text style={styles.scoreDimLabel}>{DIMENSION_LABELS[dim]}</Text>
                       <View style={styles.scoreBarTrack}>
-                        <View style={[styles.scoreBarFill, { width: `${score.dimensions[dim]}%` }]} />
+                        <LinearGradient
+                          colors={[colors.mistBlue, colors.secondaryFixed]}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 0 }}
+                          style={[styles.scoreBarFill, { width: `${score.dimensions[dim]}%` }]}
+                        />
                       </View>
                       <Text style={styles.scoreDimValue}>{score.dimensions[dim]}</Text>
                     </View>
@@ -506,7 +529,10 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
                 {score.tips.length > 0 ? (
                   <View style={styles.scoreTips}>
                     {score.tips.map((tip, idx) => (
-                      <Text key={idx} style={styles.scoreTip}>· {tip}</Text>
+                      <View key={idx} style={styles.scoreTipRow}>
+                        <View style={styles.scoreTipDot} />
+                        <Text style={styles.scoreTip}>{tip}</Text>
+                      </View>
                     ))}
                   </View>
                 ) : null}
@@ -757,6 +783,31 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginTop: 14,
   },
+  sectionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 18,
+    marginBottom: 2,
+  },
+  sectionAccent: {
+    width: 3,
+    height: 14,
+    borderRadius: 2,
+    backgroundColor: colors.secondaryFixed,
+  },
+  sectionTitle: {
+    color: colors.ink,
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  sectionHint: {
+    color: colors.subtle,
+    fontSize: 11,
+    flex: 1,
+    textAlign: 'right',
+  },
   qualityBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -943,22 +994,61 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   scoreCard: {
-    marginTop: 8,
-    paddingVertical: 4,
+    marginTop: 10,
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 231, 150, 0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(227, 195, 110, 0.35)',
   },
-  scoreOverall: {
+  scoreHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  scoreRing: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    ...shadows.glassSm,
+  },
+  scoreRingValue: {
+    color: colors.secondaryFixed,
+    fontSize: 22,
+    fontWeight: '800',
+    lineHeight: 24,
+  },
+  scoreRingUnit: {
+    color: colors.secondaryFixedDim,
+    fontSize: 9,
+    fontWeight: '600',
+    marginTop: -2,
+  },
+  scoreHeadText: {
+    flex: 1,
+    gap: 3,
+  },
+  scoreHeadTitle: {
     color: colors.ink,
     fontSize: 14,
     fontWeight: '700',
-    marginBottom: 6,
+  },
+  scoreHeadSub: {
+    color: colors.muted,
+    fontSize: 11,
+    lineHeight: 15,
   },
   scoreDims: {
-    gap: 4,
+    gap: 6,
   },
   scoreDimRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   scoreDimLabel: {
     color: colors.muted,
@@ -967,15 +1057,15 @@ const styles = StyleSheet.create({
   },
   scoreBarTrack: {
     flex: 1,
-    height: 5,
-    borderRadius: 999,
-    backgroundColor: colors.muted,
-    opacity: 0.25,
-  },
-  scoreBarFill: {
-    height: 5,
+    height: 6,
     borderRadius: 999,
     backgroundColor: colors.primary,
+    opacity: 0.12,
+    overflow: 'hidden',
+  },
+  scoreBarFill: {
+    height: 6,
+    borderRadius: 999,
   },
   scoreDimValue: {
     color: colors.ink,
@@ -985,13 +1075,29 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   scoreTips: {
+    marginTop: 10,
+    gap: 5,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(227, 195, 110, 0.3)',
+  },
+  scoreTipRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 7,
+  },
+  scoreTipDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.secondaryFixedDim,
     marginTop: 6,
-    gap: 2,
   },
   scoreTip: {
     color: colors.muted,
     fontSize: 11,
     lineHeight: 16,
+    flex: 1,
   },
   enhanceButton: {
     minHeight: 40,
