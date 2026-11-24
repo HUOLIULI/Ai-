@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Image,
   Modal,
@@ -16,6 +16,7 @@ import { colors, shadows } from '../../constants/theme';
 import { PageHeader } from '../ui/PageHeader';
 import { useCaptureStore } from '../../store/captureStore';
 import { getAlbumImages, type AlbumItem } from '../../lib/album';
+import { loadDevicePhotos } from '../../lib/media';
 
 type Props = { capturedUri: string | null; savedUris: string[] };
 
@@ -36,7 +37,19 @@ export function AlbumPage({ capturedUri, savedUris }: Props) {
   const favoriteUris = useCaptureStore((state) => state.favoriteUris) || [];
   const toggleFavorite = useCaptureStore((state) => state.toggleFavorite);
 
-  const images = getAlbumImages(capturedUri, savedUris);
+  // The album shows the device's whole library, not just this session's shots.
+  // Device photos load once on mount and fail open to [] (permission denied or
+  // error), so the session captures always render.
+  const [devicePhotos, setDevicePhotos] = useState<AlbumItem[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void loadDevicePhotos().then((photos) => {
+      if (!cancelled) setDevicePhotos(photos);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const images = getAlbumImages(capturedUri, savedUris, devicePhotos);
 
   const filteredImages = images.filter((item) => {
     if (selectedFilter === '全部') return true;
