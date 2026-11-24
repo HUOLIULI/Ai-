@@ -10,12 +10,21 @@ import { analyzeReferenceGrade, applyReferenceGradeToPhoto } from '../../lib/ref
 import { loadDevicePhotos } from '../../lib/media';
 import type { AlbumItem } from '../../lib/album';
 import { toDataUrl } from '../../lib/photoDataUrl';
+import { scaleColorGrade, scaleBeauty } from '../../lib/intensity';
 import { getActiveAIConfig } from '../../lib/aiConfig';
 import { defaultFilterBackend } from '../../plugin/builtin';
 import { IconButton } from '../ui/IconButton';
 import { PrimaryButton } from '../ui/PrimaryButton';
 
 type Props = { uri: string; onRetake: () => void; onSave: () => void; saving: boolean };
+
+// Preset strength levels for dialing AI enhancements back toward neutral.
+// 足量 (1) preserves the model's full output; the others scale it down.
+const STRENGTH_LEVELS = [
+  { label: '轻', value: 0.5 },
+  { label: '适中', value: 0.75 },
+  { label: '足量', value: 1 },
+] as const;
 
 export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
   const [qualityHints, setQualityHints] = useState<string[]>([]);
@@ -29,6 +38,7 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
   const [refUri, setRefUri] = useState<string | null>(null);
   const [matching, setMatching] = useState(false);
   const [matchError, setMatchError] = useState<string | null>(null);
+  const [strength, setStrength] = useState(1);
   useEffect(() => {
     let cancelled = false;
     setQualityHints([]);
@@ -50,7 +60,9 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
       const config = await getActiveAIConfig();
       const dataUrl = await toDataUrl(editedUri ?? uri);
       const edit = await editPhotoFromInstruction(config, text, dataUrl, new AbortController().signal);
-      const out = await applyNlEditToPhoto(editedUri ?? uri, edit, defaultFilterBackend());
+      // Dial the model's grade + look toward neutral by the user's strength.
+      const scaled = { grade: scaleColorGrade(edit.grade, strength), look: scaleBeauty(edit.look, strength) };
+      const out = await applyNlEditToPhoto(editedUri ?? uri, scaled, defaultFilterBackend());
       setEditedUri(out);
     } catch {
       setEditError('修图未生效，请检查 AI 配置或换一句指令。');
@@ -90,7 +102,8 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
       const sourceDataUrl = await toDataUrl(displayUri);
       const referenceDataUrl = await toDataUrl(reference);
       const params = await analyzeReferenceGrade(config, sourceDataUrl, referenceDataUrl, new AbortController().signal);
-      const out = await applyReferenceGradeToPhoto(displayUri, params, defaultFilterBackend());
+      // Dial the matched grade toward neutral by the user's strength.
+      const out = await applyReferenceGradeToPhoto(displayUri, scaleColorGrade(params, strength), defaultFilterBackend());
       setEditedUri(out);
     } catch {
       setMatchError('匹配未生效，请检查 AI 配置或换张参考图。');
@@ -234,6 +247,28 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
               </ScrollView>
             ) : null}
             {matchError ? <Text style={styles.editError}>{matchError}</Text> : null}
+
+            {/* 强度：把 AI 增强效果向中性回调，避免过度处理 */}
+            <View style={styles.strengthRow}>
+              <Text style={styles.strengthLabel}>强度</Text>
+              <View style={styles.strengthSegments}>
+                {STRENGTH_LEVELS.map((level) => {
+                  const active = strength === level.value;
+                  return (
+                    <Pressable
+                      key={level.label}
+                      accessibilityRole="button"
+                      accessibilityLabel={`增强强度${level.label}`}
+                      accessibilityState={{ selected: active }}
+                      onPress={() => setStrength(level.value)}
+                      style={({ pressed }) => [styles.strengthSegment, active && styles.strengthSegmentActive, pressed && styles.matchPressed]}
+                    >
+                      <Text style={[styles.strengthSegmentText, active && styles.strengthSegmentTextActive]}>{level.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
 
             {qualityHints.length > 0 && (
               <View style={styles.qualityBanner}>
@@ -524,6 +559,44 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  strengthRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 12,
+  },
+  strengthLabel: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  strengthSegments: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: 6,
+  },
+  strengthSegment: {
+    flex: 1,
+    minHeight: 30,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    borderWidth: 1,
+    borderColor: 'rgba(24, 22, 18, 0.12)',
+  },
+  strengthSegmentActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  strengthSegmentText: {
+    color: colors.ink,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  strengthSegmentTextActive: {
+    color: colors.secondaryFixed,
   },
   actions: {
     flexDirection: 'row',

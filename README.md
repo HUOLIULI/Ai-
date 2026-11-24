@@ -196,7 +196,7 @@ On top of composition guidance, Drama applies a set of optional, online AI passe
 
 ### How it works
 
-Every enhancement follows one pattern: the vision model returns a handful of **bounded numeric parameters** (constrained by a JSON schema), and a pure compiler maps those onto a `LutSpec` (color matrix + tone curve + temperature) that a shared LUT engine applies pixel-by-pixel. This keeps each pass testable and consistent with the built-in style filters.
+Every enhancement follows one pattern: the vision model returns a handful of **bounded numeric parameters** (constrained by a JSON schema), and a pure compiler maps those onto a `LutSpec` (color matrix + tone curve + temperature) that a shared LUT engine applies pixel-by-pixel. This keeps each pass testable and consistent with the built-in style filters. The review screen also exposes a **strength** control (Light / Medium / Full) that scales the model's result back toward neutral to avoid over-processing.
 
 The LUT renders through a platform-adaptive backend: a native Android bitmap module (`modules/image-filter`) on Android, and an HTML canvas backend on the web. Where no backend exists the photo passes through unchanged.
 

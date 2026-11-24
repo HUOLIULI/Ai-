@@ -94,7 +94,7 @@ npx tsc --noEmit
 - **参考图复刻色调**（`src/lib/refColorMatch.ts`）：用户在回顾页从设备最近照片（复用 `loadDevicePhotos`，expo-media-library 已装）挑一张参考图，`buildReferenceGradeMessages` 把原图（index0）+ 参考图（index1）作为两张 `image_url` 放进同一条 user 消息（`AIMessage.content` 数组天然支持多图，模型层零改动），`analyzeReferenceGrade` 复用 `COLOR_GRADE_SCHEMA` 返回五参数，`applyReferenceGradeToPhoto` 复用 `colorGradeParamsToLut`+`applyLutSpecToPhoto` 把参考图色调套到当前预览（可叠加在一句修图之上，fail-open）。UI：回顾页"参考图匹配"入口 + 缩略图条点选 + "应用匹配"。
 - 落地边界（诚实声明）：调研清单里 **HDR/夜景降噪/超分辨率/AI 消除/人像虚化(抠图)/Live Photo** 需要**原生计算摄影管线 + 图像生成/分割模型**，纯 JS + LUT 通路做不出真效果，硬做是假象，留待原生计算摄影/分割模型。已建成的 `modules/image-filter` 是逐像素 LUT bitmap 后端（覆盖调色/美颜/风格滤镜），做不了空间/生成式效果。本轮落地的是视觉模型 + LUT 引擎能覆盖的部分。
 
-验收：场景识别的场景→模式/风格映射覆盖全部场景标签、`normalizeScene` 越界/未知标签/置信度钳制、controls 开关；自然语言修图的 `parseNlEdit` 全量/缺省/越界/格式非法、`applyNlEditToPhoto` fail-open、回顾页输入框渲染与按钮显隐；参考图匹配的 `buildReferenceGradeMessages` 两图顺序与文本、`analyzeReferenceGrade` 成功/失败、`applyReferenceGradeToPhoto` 编译 LUT 调 backend 与 fail-open、回顾页选参考图→应用匹配→预览替换与失败保留原图。真机需验证：场景分类准确率、一句话指令与参考图匹配的观感、以及模型往返延迟。
+验收：场景识别的场景→模式/风格映射覆盖全部场景标签、`normalizeScene` 越界/未知标签/置信度钳制、controls 开关；自然语言修图的 `parseNlEdit` 全量/缺省/越界/格式非法、`applyNlEditToPhoto` fail-open、回顾页输入框渲染与按钮显隐；参考图匹配的 `buildReferenceGradeMessages` 两图顺序与文本、`analyzeReferenceGrade` 成功/失败、`applyReferenceGradeToPhoto` 编译 LUT 调 backend 与 fail-open、回顾页选参考图→应用匹配→预览替换与失败保留原图；强度调节（`src/lib/intensity.ts`）的 `scaleColorGrade`/`scaleBeauty` 在 strength=1 原样、=0 归中性、中间值保号缩放、`-0` 折叠为 `0`，回顾页强度分段控件渲染与选中切换。真机需验证：场景分类准确率、一句话指令与参考图匹配的观感、强度回调的实际效果、以及模型往返延迟。
 
 ### 对外分发插件（expo-drama）
 

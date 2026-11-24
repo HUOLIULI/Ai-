@@ -63,3 +63,20 @@ describe('PhotoReview reference color match', () => {
     expect(await screen.findByText('匹配未生效，请检查 AI 配置或换张参考图。')).toBeDefined();
   });
 });
+
+describe('PhotoReview strength control', () => {
+  it('renders the three strength presets with 足量 selected by default', () => {
+    render(<PhotoReview uri="photo-uri" onRetake={() => {}} onSave={() => {}} saving={false} />);
+    expect(screen.getByLabelText('增强强度轻')).toBeDefined();
+    expect(screen.getByLabelText('增强强度适中')).toBeDefined();
+    expect(screen.getByLabelText('增强强度足量')).toBeDefined();
+    expect(screen.getByLabelText('增强强度足量').props.accessibilityState.selected).toBe(true);
+  });
+
+  it('lets the user select a lower strength', () => {
+    render(<PhotoReview uri="photo-uri" onRetake={() => {}} onSave={() => {}} saving={false} />);
+    fireEvent.press(screen.getByLabelText('增强强度轻'));
+    expect(screen.getByLabelText('增强强度轻').props.accessibilityState.selected).toBe(true);
+    expect(screen.getByLabelText('增强强度足量').props.accessibilityState.selected).toBe(false);
+  });
+});
