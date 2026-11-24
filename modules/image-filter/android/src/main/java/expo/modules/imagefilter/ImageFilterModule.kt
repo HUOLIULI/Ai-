@@ -119,7 +119,7 @@ class ImageFilterModule : Module() {
     val firstY = curve[1]
     if (t <= firstX) return firstY
     var i = 2
-    while (i + 3 < curve.size) {
+    while (i + 1 < curve.size) {
       val x = curve[i]
       val y = curve[i + 1]
       if (t <= x) {
