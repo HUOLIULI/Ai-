@@ -23,7 +23,16 @@ export function CameraDirectionOverlay({ target, enabled, width, height }: Props
   const length = Math.hypot(dx, dy);
   const dashes = Math.max(0, Math.floor((length - radius - 12) / 12));
   const color = target?.phase === 'ready' ? '#FFE08E' : '#F6E3B4';
+  // Rule-of-thirds guides: two vertical + two horizontal lines at 1/3 and 2/3,
+  // shown whenever composition guidance is on so the user has a framing reference
+  // even before an aim point locks on.
+  const thirdX = [width / 3, (2 * width) / 3];
+  const thirdY = [height / 3, (2 * height) / 3];
   return <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+    {enabled && <View testID="thirds-grid" pointerEvents="none" style={StyleSheet.absoluteFill}>
+      {thirdX.map(x => <View key={`vx-${x}`} style={[styles.gridLine, styles.gridV, { left: x - 0.5 }]} />)}
+      {thirdY.map(y => <View key={`hy-${y}`} style={[styles.gridLine, styles.gridH, { top: y - 0.5 }]} />)}
+    </View>}
     {enabled && target && <>
       {Array.from({ length: dashes }, (_, index) => {
         const distance = 12 + index * 12;
@@ -45,4 +54,7 @@ const styles = StyleSheet.create({
   dash: { position: 'absolute', width: 6, height: 2, borderRadius: 1 },
   target: { position: 'absolute', borderWidth: 2 },
   dot: { position: 'absolute', width: 8, height: 8, borderRadius: 4, borderWidth: 1, borderColor: 'rgba(24, 22, 18, 0.35)' },
+  gridLine: { position: 'absolute', backgroundColor: 'rgba(246, 227, 180, 0.35)' },
+  gridV: { width: 1, height: '100%' },
+  gridH: { height: 1, width: '100%' },
 });
