@@ -10,6 +10,7 @@ import { analyzeReferenceGrade, applyReferenceGradeToPhoto } from '../../lib/ref
 import { analyzeWhiteBalance, applyWbCorrectionToPhoto } from '../../lib/wbCorrection';
 import { getSceneAdvice, applySceneAdviceToPhoto, type SceneAdvice } from '../../lib/sceneAdvice';
 import { planAutoEnhance, applyAutoEnhanceToPhoto } from '../../lib/autoEnhance';
+import { scorePhoto, DIMENSION_LABELS, SCORE_DIMENSIONS, type PhotoScore } from '../../lib/photoScore';
 import { loadDevicePhotos } from '../../lib/media';
 import type { AlbumItem } from '../../lib/album';
 import { toDataUrl } from '../../lib/photoDataUrl';
@@ -47,6 +48,9 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
   const [adviceLoading, setAdviceLoading] = useState(false);
   const [adviceError, setAdviceError] = useState<string | null>(null);
   const [applyingAdvice, setApplyingAdvice] = useState(false);
+  const [score, setScore] = useState<PhotoScore | null>(null);
+  const [scoreLoading, setScoreLoading] = useState(false);
+  const [scoreError, setScoreError] = useState<string | null>(null);
   const [enhancing, setEnhancing] = useState(false);
   const [enhanceError, setEnhanceError] = useState<string | null>(null);
   const [strength, setStrength] = useState(1);
@@ -58,7 +62,7 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
     });
     return () => { cancelled = true; };
   }, [uri]);
-  useEffect(() => { setEditedUri(null); setEditError(null); setMatchError(null); setCorrectError(null); setAdvice(null); setAdviceError(null); setEnhanceError(null); setRefUri(null); }, [uri]);
+  useEffect(() => { setEditedUri(null); setEditError(null); setMatchError(null); setCorrectError(null); setAdvice(null); setAdviceError(null); setEnhanceError(null); setRefUri(null); setScore(null); setScoreError(null); }, [uri]);
 
   // Applies a natural-language instruction to the photo: the vision model
   // returns a grade + look parameter set, compiled to a LUT and applied. Fails
@@ -171,6 +175,23 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
       setAdviceError('建议未生效，请稍后再试。');
     } finally {
       setApplyingAdvice(false);
+    }
+  }
+
+  // AI photo score: the vision model grades the finished shot across five
+  // dimensions and returns a summary plus tips so the user can judge which
+  // shot to keep. Display-only; fails open with a visible message.
+  async function loadScore() {
+    if (scoreLoading || score) return;
+    setScoreLoading(true); setScoreError(null);
+    try {
+      const config = await getActiveAIConfig();
+      const dataUrl = await toDataUrl(displayUri);
+      setScore(await scorePhoto(config, dataUrl, new AbortController().signal));
+    } catch {
+      setScoreError('未能生成评分，请检查 AI 配置或稍后再试。');
+    } finally {
+      setScoreLoading(false);
     }
   }
 
@@ -386,6 +407,45 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
               <Text style={styles.adviceNote}>{advice.rationale}</Text>
             ) : null}
             {adviceError ? <Text style={styles.editError}>{adviceError}</Text> : null}
+
+            {/* AI 照片评分：五维打分 + 总评 + 改进建议，帮助判断哪张值得留 */}
+            <View style={styles.matchRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="生成照片评分"
+                onPress={() => void loadScore()}
+                disabled={scoreLoading || !!score}
+                style={({ pressed }) => [styles.matchToggle, pressed && styles.matchPressed, (scoreLoading || !!score) && styles.matchDisabled]}
+              >
+                <Ionicons name="star-outline" size={13} color={colors.ink} />
+                <Text style={styles.matchToggleText}>{scoreLoading ? '评分中' : score ? `总分 ${score.overall}` : 'AI 照片评分'}</Text>
+              </Pressable>
+            </View>
+            {score ? (
+              <View style={styles.scoreCard}>
+                <Text style={styles.scoreOverall}>总分 {score.overall}</Text>
+                <View style={styles.scoreDims}>
+                  {SCORE_DIMENSIONS.map((dim) => (
+                    <View key={dim} style={styles.scoreDimRow}>
+                      <Text style={styles.scoreDimLabel}>{DIMENSION_LABELS[dim]}</Text>
+                      <View style={styles.scoreBarTrack}>
+                        <View style={[styles.scoreBarFill, { width: `${score.dimensions[dim]}%` }]} />
+                      </View>
+                      <Text style={styles.scoreDimValue}>{score.dimensions[dim]}</Text>
+                    </View>
+                  ))}
+                </View>
+                <Text style={styles.adviceNote}>{score.summary}</Text>
+                {score.tips.length > 0 ? (
+                  <View style={styles.scoreTips}>
+                    {score.tips.map((tip, idx) => (
+                      <Text key={idx} style={styles.scoreTip}>· {tip}</Text>
+                    ))}
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+            {scoreError ? <Text style={styles.editError}>{scoreError}</Text> : null}
 
             {/* 强度：把 AI 增强效果向中性回调，避免过度处理 */}
             <View style={styles.strengthRow}>
@@ -742,6 +802,57 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 16,
     marginTop: 6,
+  },
+  scoreCard: {
+    marginTop: 8,
+    paddingVertical: 4,
+  },
+  scoreOverall: {
+    color: colors.ink,
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  scoreDims: {
+    gap: 4,
+  },
+  scoreDimRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  scoreDimLabel: {
+    color: colors.muted,
+    fontSize: 11,
+    width: 26,
+  },
+  scoreBarTrack: {
+    flex: 1,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: colors.muted,
+    opacity: 0.25,
+  },
+  scoreBarFill: {
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: colors.primary,
+  },
+  scoreDimValue: {
+    color: colors.ink,
+    fontSize: 11,
+    fontWeight: '700',
+    width: 22,
+    textAlign: 'right',
+  },
+  scoreTips: {
+    marginTop: 6,
+    gap: 2,
+  },
+  scoreTip: {
+    color: colors.muted,
+    fontSize: 11,
+    lineHeight: 16,
   },
   enhanceButton: {
     minHeight: 40,

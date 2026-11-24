@@ -196,6 +196,7 @@ On top of composition guidance, Drama applies a set of optional, online AI passe
 | **Auto White-Balance Correction** | Detects a colour cast (warm / cool / green / magenta) and an exposure error (over / under), then returns counter-shift parameters that neutralise them — "correct, don't transform". | Photo review screen, "Auto WB" |
 | **AI Scene Advice** | On the review screen, recognises the scene of an already-taken photo, suggests a matching style with a rationale, and applies the recommended style filter in one tap. | Photo review screen, "Scene Advice" |
 | **One-Tap Auto-Enhance** | The flagship "just make it good" action: runs scene style and corrective white-balance/exposure in parallel and applies both in one tap, scaled by the strength control. | Photo review screen, "Auto-Enhance" |
+| **AI Photo Score** | Grade a finished shot the moment it's taken: five dimension scores (composition / lighting / color / sharpness / aesthetics) plus a one-line summary and tips to judge which shot to keep. | Photo review screen, "Photo Score" |
 
 ### How it works
 
