@@ -1,15 +1,26 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, fonts, shadows } from '../../constants/theme';
+import { analyzePhotoQuality } from '../../lib/photoQualityGuard';
 import { IconButton } from '../ui/IconButton';
 import { PrimaryButton } from '../ui/PrimaryButton';
 
 type Props = { uri: string; onRetake: () => void; onSave: () => void; saving: boolean };
 
 export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
+  const [qualityHints, setQualityHints] = useState<string[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    setQualityHints([]);
+    void analyzePhotoQuality(uri).then((report) => {
+      if (!cancelled && report.shouldRetake) setQualityHints(report.hints);
+    });
+    return () => { cancelled = true; };
+  }, [uri]);
+
   return (
     <View style={styles.page}>
       <View style={styles.header}>
@@ -66,6 +77,17 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
             </View>
 
             <Text style={styles.note}>保存到相册后将自动继续拍摄，也可以重拍一次。</Text>
+
+            {qualityHints.length > 0 && (
+              <View style={styles.qualityBanner}>
+                <Ionicons name="alert-circle-outline" size={16} color={colors.tertiary} />
+                <View style={styles.qualityTextWrap}>
+                  {qualityHints.map((hint) => (
+                    <Text key={hint} style={styles.qualityText}>{hint}</Text>
+                  ))}
+                </View>
+              </View>
+            )}
 
             <View style={styles.actions}>
               {/* 重拍：雾态玻璃按钮 */}
@@ -204,6 +226,25 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 20,
     marginTop: 14,
+  },
+  qualityBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginTop: 12,
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: colors.primarySoft,
+  },
+  qualityTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  qualityText: {
+    color: colors.tertiary,
+    fontSize: 12,
+    lineHeight: 17,
+    fontFamily: fonts.body,
   },
   actions: {
     flexDirection: 'row',
