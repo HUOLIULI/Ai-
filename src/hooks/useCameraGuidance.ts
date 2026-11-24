@@ -65,6 +65,11 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
   const [autoStyle, setAutoStyle] = useState(true);
   const autoStyleRef = useRef(true);
   const appliedAutoStyleRef = useRef<CameraStyle | null>(null);
+  // Auto-flash: when on, a dark-scene decision enables the flash on the back
+  // camera. A manual flash toggle turns it off so the user keeps control.
+  const [autoFlash, setAutoFlash] = useState(true);
+  const autoFlashRef = useRef(true);
+  const appliedAutoFlashRef = useRef(false);
   // Stable identity for the refresh callback so effects and the guidance loop
   // can call it without it changing identity across renders.
   const refreshRef = useRef<() => void>(() => {});
@@ -399,6 +404,10 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
     autoStyleRef.current = !autoStyleRef.current; setAutoStyle(autoStyleRef.current);
     if (autoStyleRef.current) appliedAutoStyleRef.current = null;
   }
+  function toggleAutoFlash() {
+    autoFlashRef.current = !autoFlashRef.current; setAutoFlash(autoFlashRef.current);
+    if (autoFlashRef.current) appliedAutoFlashRef.current = false;
+  }
   function manualZoom(value: number) {
     autoRef.current = false; setAutoZoom(false); cancelZoom();
     if (busyRef.current) loop.current?.pause('变焦已改变，请完成调整后重新规划');
@@ -421,7 +430,7 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
     cancelZoom(); resetStep(); loop.current?.stop();
     const styleVersion = ++styleRevision.current;
     if (change.zoom !== undefined) manualZoom(change.zoom);
-    if (change.flash !== undefined) commitContext({ ...contextRef.current, flash: change.flash });
+    if (change.flash !== undefined) { autoFlashRef.current = false; setAutoFlash(false); commitContext({ ...contextRef.current, flash: change.flash }); }
     if (!hardware) { setTuningMessage('微调已应用'); return; }
     manualBusy.current = true; setAdjustingParameters(true);
     setTuningMessage('正在应用微调…');
@@ -535,7 +544,22 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
     // stable in behavior; including it would re-run the effect every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shutterDecision, autoStyle]);
-  return { context, enabled, autoZoom, adjustingZoom, adjustingParameters, ready, active, capturing, sampling, switching, starting, result, target, executionPhase, status, configMissing, sensorAvailable, tuningMessage, appliedTuning, shutterDecision, autoStyle,
-    toggleGuidance, toggleAutoZoom, toggleAutoStyle, manualZoom, adjustParameters, changeStyle, changeMode, flipCamera, cameraReady, cameraError, capture, confirmAdjustment, sampleFrame, refreshShutterDecision,
+  // Auto-fill: a dark-scene decision enables the flash on the back camera so a
+  // dim frame gets lit without a manual toggle. Front camera has no flash, and a
+  // manual flash change clears auto-flash to hand control back to the user.
+  useEffect(() => {
+    if (!autoFlash || !readyRef.current || !activeRef.current || captureRef.current) return;
+    if (contextRef.current.facing !== 'back') return;
+    if (shutterDecision?.exposure.level !== 'dark') { appliedAutoFlashRef.current = false; return; }
+    if (contextRef.current.flash !== 'off') return;
+    if (appliedAutoFlashRef.current) return;
+    appliedAutoFlashRef.current = true;
+    commitContext({ ...contextRef.current, flash: 'on' });
+    // Intentionally omit commitContext: it is a hoisted declaration reading refs,
+    // stable in behavior; including it would re-run the effect every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shutterDecision, autoFlash]);
+  return { context, enabled, autoZoom, adjustingZoom, adjustingParameters, ready, active, capturing, sampling, switching, starting, result, target, executionPhase, status, configMissing, sensorAvailable, tuningMessage, appliedTuning, shutterDecision, autoStyle, autoFlash,
+    toggleGuidance, toggleAutoZoom, toggleAutoStyle, toggleAutoFlash, manualZoom, adjustParameters, changeStyle, changeMode, flipCamera, cameraReady, cameraError, capture, confirmAdjustment, sampleFrame, refreshShutterDecision,
     refresh: () => invalidate('正在重新规划当前画面') };
 }

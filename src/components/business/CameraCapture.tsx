@@ -200,6 +200,19 @@ export function CameraCapture({ cameraRef, onClose, onCapture, onConfigure, onOp
             onToggleAutoStyle={guide.toggleAutoStyle}
           />
 
+          <View style={styles.autoRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ selected: guide.autoFlash }}
+              disabled={guide.capturing}
+              onPress={guide.toggleAutoFlash}
+              style={[styles.autoChip, guide.autoFlash && styles.autoChipOn]}
+            >
+              <Ionicons name="flash-outline" size={13} color={guide.autoFlash ? colors.secondaryFixed : colors.onSurfaceVariant} />
+              <Text style={[styles.autoChipText, guide.autoFlash && styles.autoChipTextOn]}>自动补光</Text>
+            </Pressable>
+          </View>
+
           <ShutterDecisionCard decision={guide.shutterDecision} />
 
           <CaptureDeck
@@ -243,6 +256,30 @@ const styles = StyleSheet.create({
   confirmSlot: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  autoRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  autoChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: colors.surfaceContainer,
+  },
+  autoChipOn: {
+    backgroundColor: colors.primary,
+  },
+  autoChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.onSurfaceVariant,
+  },
+  autoChipTextOn: {
+    color: colors.secondaryFixed,
   },
   confirmStep: {
     flexDirection: 'row',
