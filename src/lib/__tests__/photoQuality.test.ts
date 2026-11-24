@@ -1,4 +1,4 @@
-import { assessQuality, computeQualityStats, type QualityStats } from '../photoQuality';
+import { assessQuality, computeQualityStats, eyeStateFromProbabilities, type QualityStats } from '../photoQuality';
 
 // A "sharp" synthetic frame: strong alternating gradient between neighbours.
 function sharpLuma(size = 64): Uint8Array {
@@ -33,6 +33,29 @@ describe('computeQualityStats', () => {
 
   it('handles an empty frame without throwing', () => {
     expect(() => computeQualityStats(new Uint8Array(0))).not.toThrow();
+  });
+});
+
+describe('eyeStateFromProbabilities', () => {
+  it('reports eyes closed when both eyes are below the threshold', () => {
+    expect(eyeStateFromProbabilities(0.1, 0.2)).toBe(false);
+  });
+
+  it('reports eyes open when both eyes are above the threshold', () => {
+    expect(eyeStateFromProbabilities(0.9, 0.85)).toBe(true);
+  });
+
+  it('treats one open eye as open (a blink rarely closes both symmetrically)', () => {
+    expect(eyeStateFromProbabilities(0.9, 0.1)).toBe(true);
+  });
+
+  it('returns null when a probability is unavailable', () => {
+    expect(eyeStateFromProbabilities(null, 0.9)).toBeNull();
+    expect(eyeStateFromProbabilities(0.9, null)).toBeNull();
+  });
+
+  it('returns null when no face is present', () => {
+    expect(eyeStateFromProbabilities(null, null)).toBeNull();
   });
 });
 

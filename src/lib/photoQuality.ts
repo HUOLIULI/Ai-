@@ -28,6 +28,21 @@ function isFiniteNumber(value: number | null | undefined): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
+// Derives an eyes-open state from MLKit's per-eye open probabilities
+// (0..1). Both probabilities must be present to judge; if either is missing
+// (classification mode off, detection failed) we return null so the caller
+// skips the closed-eye dimension rather than guessing. A single open eye
+// counts as open because a blink rarely closes both symmetrically.
+const EYE_OPEN_THRESHOLD = 0.5;
+
+export function eyeStateFromProbabilities(
+  leftEyeOpenProbability: number | null | undefined,
+  rightEyeOpenProbability: number | null | undefined,
+): boolean | null {
+  if (!isFiniteNumber(leftEyeOpenProbability) || !isFiniteNumber(rightEyeOpenProbability)) return null;
+  return leftEyeOpenProbability >= EYE_OPEN_THRESHOLD || rightEyeOpenProbability >= EYE_OPEN_THRESHOLD;
+}
+
 // Computes blur / exposure stats from raw luminance bytes (one per entry).
 // Sharpness is the mean absolute difference between horizontally adjacent
 // pixels, a lightweight proxy for detail. Pure and total (never throws).
