@@ -42,6 +42,12 @@ jest.mock('../../../lib/media', () => ({
     { uri: 'ref-b', title: '参考B', tag: '设备相册' },
   ]),
 }));
+jest.mock('../../../plugin/builtin/filters', () => ({
+  applyLutSpecToPhoto: jest.fn(async (_uri: string) => `textured-${_uri}`),
+}));
+jest.mock('../../../plugin/builtin', () => ({
+  defaultFilterBackend: jest.fn(() => ({})),
+}));
 
 describe('PhotoReview natural-language edit', () => {
   it('renders the edit instruction input', () => {
@@ -146,5 +152,39 @@ describe('PhotoReview one-tap auto-enhance', () => {
     render(<PhotoReview uri="photo-uri" onRetake={() => {}} onSave={() => {}} saving={false} />);
     fireEvent.press(screen.getByLabelText('一键智能增强'));
     expect(await screen.findByText('增强未生效，请检查 AI 配置或稍后再试。')).toBeDefined();
+  });
+});
+
+describe('PhotoReview film texture', () => {
+  it('renders grain/vignette level controls', () => {
+    render(<PhotoReview uri="photo-uri" onRetake={() => {}} onSave={() => {}} saving={false} />);
+    expect(screen.getByLabelText('颗粒无')).toBeDefined();
+    expect(screen.getByLabelText('颗粒重')).toBeDefined();
+    expect(screen.getByLabelText('暗角无')).toBeDefined();
+    expect(screen.getByLabelText('暗角重')).toBeDefined();
+    expect(screen.getByLabelText('颗粒无').props.accessibilityState.selected).toBe(true);
+    expect(screen.getByLabelText('暗角无').props.accessibilityState.selected).toBe(true);
+  });
+
+  it('layers texture on the edited photo instead of the original, without compounding', async () => {
+    const { applyLutSpecToPhoto } = require('../../../plugin/builtin/filters');
+    render(<PhotoReview uri="photo-uri" onRetake={() => {}} onSave={() => {}} saving={false} />);
+    // First apply a non-texture edit so there is a graded base to protect.
+    fireEvent.press(screen.getByLabelText('获取场景建议'));
+    fireEvent.press(await screen.findByLabelText('应用场景建议'));
+    await screen.findByLabelText('应用场景建议');
+    // Now add grain: texture must read the edited base, not the original uri.
+    (applyLutSpecToPhoto as jest.Mock).mockClear();
+    fireEvent.press(screen.getByLabelText('颗粒中'));
+    await screen.findByLabelText('颗粒中');
+    const firstCall = (applyLutSpecToPhoto as jest.Mock).mock.calls[0][0];
+    expect(firstCall).toBe('advised-uri');
+    // Moving the vignette slider re-renders from the same texture base, so the
+    // two passes do not stack grain/vignette on top of each other.
+    (applyLutSpecToPhoto as jest.Mock).mockClear();
+    fireEvent.press(screen.getByLabelText('暗角中'));
+    await screen.findByLabelText('暗角中');
+    const secondCall = (applyLutSpecToPhoto as jest.Mock).mock.calls[0][0];
+    expect(secondCall).toBe('advised-uri');
   });
 });

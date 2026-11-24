@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
@@ -73,6 +73,12 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
   const [grain, setGrain] = useState(0);
   const [vignette, setVignette] = useState(0);
   const [busyTexture, setBusyTexture] = useState(false);
+  // Base image the film-texture layer renders from: the edited photo as it was
+  // right before texture was first applied. Re-rendering grain/vignette reads
+  // this base (not the original capture, not the already-textured result) so
+  // texture layers on top of any prior grade/crop without wiping them and
+  // without compounding when the sliders move. Cleared by any non-texture edit.
+  const textureBaseRef = useRef<string | null>(null);
   const [crop, setCrop] = useState<CropSuggestion | null>(null);
   const [cropping, setCropping] = useState(false);
   const [cropError, setCropError] = useState<string | null>(null);
@@ -87,7 +93,7 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
     });
     return () => { cancelled = true; };
   }, [uri]);
-  useEffect(() => { setEditedUri(null); setEditError(null); setMatchError(null); setCorrectError(null); setAdvice(null); setAdviceError(null); setEnhanceError(null); setRefUri(null); setScore(null); setScoreError(null); setCrop(null); setCropError(null); }, [uri]);
+  useEffect(() => { setEditedUri(null); setEditError(null); setMatchError(null); setCorrectError(null); setAdvice(null); setAdviceError(null); setEnhanceError(null); setRefUri(null); setScore(null); setScoreError(null); setCrop(null); setCropError(null); setGrain(0); setVignette(0); textureBaseRef.current = null; }, [uri]);
 
   // Applies a natural-language instruction to the photo: the vision model
   // returns a grade + look parameter set, compiled to a LUT and applied. Fails
@@ -104,6 +110,7 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
       const scaled = { grade: scaleColorGrade(edit.grade, strength), look: scaleBeauty(edit.look, strength) };
       const out = await applyNlEditToPhoto(editedUri ?? uri, scaled, defaultFilterBackend());
       setEditedUri(out);
+      textureBaseRef.current = null;
     } catch {
       setEditError('修图未生效，请检查 AI 配置或换一句指令。');
     } finally {
@@ -145,6 +152,7 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
       // Dial the matched grade toward neutral by the user's strength.
       const out = await applyReferenceGradeToPhoto(displayUri, scaleColorGrade(params, strength), defaultFilterBackend());
       setEditedUri(out);
+      textureBaseRef.current = null;
     } catch {
       setMatchError('匹配未生效，请检查 AI 配置或换张参考图。');
     } finally {
@@ -164,6 +172,7 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
       const reading = await analyzeWhiteBalance(config, dataUrl, new AbortController().signal);
       const out = await applyWbCorrectionToPhoto(displayUri, reading, defaultFilterBackend(), strength);
       setEditedUri(out);
+      textureBaseRef.current = null;
     } catch {
       setCorrectError('校正未生效，请检查 AI 配置或稍后再试。');
     } finally {
@@ -196,6 +205,7 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
     try {
       const out = await applySceneAdviceToPhoto(displayUri, advice);
       setEditedUri(out);
+      textureBaseRef.current = null;
     } catch {
       setAdviceError('建议未生效，请稍后再试。');
     } finally {
@@ -235,6 +245,7 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
       const rect = cropBoxToRect(suggestion.box, width, height);
       const out = await applyCropToPhoto(displayUri, rect);
       setEditedUri(out);
+      textureBaseRef.current = null;
       setCrop(null); // consumed: the preview now shows the cropped result
     } catch {
       setCropError('未能完成裁剪，请检查 AI 配置或稍后再试。');
@@ -243,17 +254,19 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
     }
   }
 
-  // Film texture: overlays grain + vignette onto the photo. Applies from the
-  // original capture with an identity colour matrix so re-rendering as the
-  // sliders move never compounds JPEG loss. Fails open — the preview is kept.
+  // Film texture: overlays grain + vignette on top of the current edited photo.
+  // Renders from the texture base (the edited image as it was before texture),
+  // so re-rendering as the sliders move never compounds JPEG loss, and the
+  // texture stacks on any prior grade/crop instead of replacing it. Fails open.
   async function applyTexture(nextGrain: number, nextVignette: number) {
     setBusyTexture(true);
     try {
+      if (textureBaseRef.current === null) textureBaseRef.current = displayUri;
       const texture = withFilmTexture(
         { name: 'film-texture', matrix: [1, 0, 0, 0, 1, 0, 0, 0, 1] },
         { grain: nextGrain, vignette: nextVignette }
       );
-      const out = await applyLutSpecToPhoto(uri, texture, defaultFilterBackend());
+      const out = await applyLutSpecToPhoto(textureBaseRef.current, texture, defaultFilterBackend());
       setEditedUri(out);
     } catch {
       // Texture is a cosmetic overlay; keep the current preview on any failure.
@@ -274,6 +287,7 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
       const plan = await planAutoEnhance(config, dataUrl, new AbortController().signal);
       const out = await applyAutoEnhanceToPhoto(displayUri, plan, defaultFilterBackend(), strength);
       setEditedUri(out);
+      textureBaseRef.current = null;
     } catch {
       setEnhanceError('增强未生效，请检查 AI 配置或稍后再试。');
     } finally {
