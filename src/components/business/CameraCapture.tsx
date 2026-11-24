@@ -195,7 +195,9 @@ export function CameraCapture({ cameraRef, onClose, onCapture, onConfigure, onOp
           <CameraStyleStrip
             activeStyle={context.style}
             disabled={guide.capturing}
+            autoStyle={guide.autoStyle}
             onChangeStyle={guide.changeStyle}
+            onToggleAutoStyle={guide.toggleAutoStyle}
           />
 
           <ShutterDecisionCard decision={guide.shutterDecision} />

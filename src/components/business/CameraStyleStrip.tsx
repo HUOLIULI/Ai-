@@ -7,14 +7,25 @@ import type { CameraStyle } from '../../types/guidance';
 type Props = {
   activeStyle: CameraStyle;
   disabled: boolean;
+  autoStyle: boolean;
   onChangeStyle: (style: CameraStyle) => void;
+  onToggleAutoStyle: () => void;
 };
 
-export function CameraStyleStrip({ activeStyle, disabled, onChangeStyle }: Props) {
+export function CameraStyleStrip({ activeStyle, disabled, autoStyle, onChangeStyle, onToggleAutoStyle }: Props) {
   return (
     <View style={styles.styleStrip}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ selected: autoStyle }}
+        disabled={disabled}
+        onPress={onToggleAutoStyle}
+        style={[styles.styleItem, autoStyle && styles.styleItemAuto]}
+      >
+        <Text style={[styles.styleText, autoStyle && styles.styleTextAuto]}>自动</Text>
+      </Pressable>
       {(Object.keys(CAMERA_STYLES) as CameraStyle[]).map((style) => {
-        const active = activeStyle === style;
+        const active = !autoStyle && activeStyle === style;
         return (
           <Pressable
             key={style}
@@ -52,6 +63,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     ...shadows.glassSm,
   },
+  styleItemAuto: {
+    backgroundColor: colors.primary,
+    ...shadows.glassSm,
+  },
   styleText: {
     color: colors.onSurfaceVariant,
     fontSize: 11,
@@ -60,6 +75,10 @@ const styles = StyleSheet.create({
   },
   styleTextActive: {
     color: colors.primary,
+    fontWeight: '700',
+  },
+  styleTextAuto: {
+    color: colors.secondaryFixed,
     fontWeight: '700',
   },
 });

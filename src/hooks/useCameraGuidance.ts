@@ -60,10 +60,19 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
   const lastLightingRef = useRef<{ mean: number; highlights: number } | null>(null);
   const facesRef = useRef<{ count: number } | null>(null);
   const [shutterDecision, setShutterDecision] = useState<ShutterDecision | null>(null);
+  // Auto-style: when on, the offline decision's recommended style is applied
+  // automatically. A manual style pick turns it off so the user keeps control.
+  const [autoStyle, setAutoStyle] = useState(true);
+  const autoStyleRef = useRef(true);
+  const appliedAutoStyleRef = useRef<CameraStyle | null>(null);
+  // Stable identity for the refresh callback so effects and the guidance loop
+  // can call it without it changing identity across renders.
+  const refreshRef = useRef<() => void>(() => {});
   const refreshShutterDecision = () => {
     const signals: ShutterSignals = { lighting: lastLightingRef.current, faces: facesRef.current, stability: shakeRef.current === null ? null : { shake: shakeRef.current } };
     setShutterDecision(decideShutter(signals));
   };
+  refreshRef.current = refreshShutterDecision;
   // Runs the on-device lighting detector on an offline sample frame and records
   // the luminance stats for the shutter decision. Per-detector fail-open: a
   // missing detector or a decode failure leaves the previous reading intact.
@@ -231,7 +240,7 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
           // Feed the same offline sample through the on-device detectors so the
           // shutter decision reflects current lighting. Fails open per-detector.
           await updateSignalRefs(sample);
-          if (mounted.current) refreshShutterDecision();
+          if (mounted.current) refreshRef.current();
           return sample;
         }
         finally { samplingRef.current = false; if (mounted.current) setSampling(false); }
@@ -386,6 +395,10 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
     const factor = executor.current.advice?.camera.zoomFactor;
     if (factor != null && Math.abs(factor - digitalZoomFactor(contextRef.current.zoom)) <= 0.3 + 1e-6) animateZoom((factor - 1) / 3);
   }
+  function toggleAutoStyle() {
+    autoStyleRef.current = !autoStyleRef.current; setAutoStyle(autoStyleRef.current);
+    if (autoStyleRef.current) appliedAutoStyleRef.current = null;
+  }
   function manualZoom(value: number) {
     autoRef.current = false; setAutoZoom(false); cancelZoom();
     if (busyRef.current) loop.current?.pause('变焦已改变，请完成调整后重新规划');
@@ -432,8 +445,11 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
       if (mounted.current) setAdjustingParameters(false);
     }
   }
-  function changeStyle(style: CameraStyle) {
+  // Applies a style change. `fromAuto` marks a decision-driven pick, which keeps
+  // auto-style on; a user pick clears auto-style so the user keeps control.
+  function changeStyle(style: CameraStyle, fromAuto = false) {
     if (manualBusy.current) return;
+    if (!fromAuto) setAutoStyle(false);
     invalidate();
     commitContext({ ...contextRef.current, style });
     if (mounted.current && activeRef.current && readyRef.current) {
@@ -474,7 +490,7 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
     setStatus({ phase: 'waiting', message: '拍摄中，AI 分析已暂停' });
     // Freeze the offline shutter decision at the moment the shutter fires so the
     // review screen can show why this frame was advised (lighting/stability).
-    if (mounted.current) refreshShutterDecision();
+    if (mounted.current) refreshRef.current();
     try {
       await queue.current.run(async () => {
         if (!mounted.current || !activeRef.current) return;
@@ -504,7 +520,22 @@ export function useCameraGuidance(cameraRef: React.RefObject<CameraView>, onCapt
     }
     return captureAnalysisSample(cameraRef.current, queue.current, signal, contextRef.current.zoom, aspectRef.current);
   }
-  return { context, enabled, autoZoom, adjustingZoom, adjustingParameters, ready, active, capturing, sampling, switching, starting, result, target, executionPhase, status, configMissing, sensorAvailable, tuningMessage, appliedTuning, shutterDecision,
-    toggleGuidance, toggleAutoZoom, manualZoom, adjustParameters, changeStyle, changeMode, flipCamera, cameraReady, cameraError, capture, confirmAdjustment, sampleFrame, refreshShutterDecision,
+  // Auto-apply the offline decision's recommended style so point-and-shoot lands
+  // on a fitting look without a manual pick. Only fires while auto-style is on,
+  // the camera is live, and the recommendation differs from what's applied.
+  useEffect(() => {
+    if (!autoStyle || !readyRef.current || !activeRef.current || captureRef.current) return;
+    const recommended = shutterDecision?.style;
+    if (!recommended) return;
+    if (recommended === contextRef.current.style) { appliedAutoStyleRef.current = recommended; return; }
+    if (appliedAutoStyleRef.current === recommended) return;
+    appliedAutoStyleRef.current = recommended;
+    changeStyle(recommended, true);
+    // Intentionally omit changeStyle: it is a hoisted declaration reading refs,
+    // stable in behavior; including it would re-run the effect every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shutterDecision, autoStyle]);
+  return { context, enabled, autoZoom, adjustingZoom, adjustingParameters, ready, active, capturing, sampling, switching, starting, result, target, executionPhase, status, configMissing, sensorAvailable, tuningMessage, appliedTuning, shutterDecision, autoStyle,
+    toggleGuidance, toggleAutoZoom, toggleAutoStyle, manualZoom, adjustParameters, changeStyle, changeMode, flipCamera, cameraReady, cameraError, capture, confirmAdjustment, sampleFrame, refreshShutterDecision,
     refresh: () => invalidate('正在重新规划当前画面') };
 }
