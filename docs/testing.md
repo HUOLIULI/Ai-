@@ -67,9 +67,17 @@ npx tsc --noEmit
 
 ### LUT 滤镜引擎
 
-- `applyLutToImageData`：像素级 RGBA LUT（3×3 矩阵 + 曲线 + 色温 + 颗粒），纯函数可单测。
-- `styleFilter()` 与 `jsFilterBackend`：对 `ImageData`（Web canvas）已生效；当前对图片 URI 透传（像素后端待接入 Web canvas/原生 base64/原生 GPU 同一接口）。
+- `applyLutToImageData`（在 `src/plugin/builtin/lutMath.ts`）：像素级 RGBA LUT（3×3 矩阵 + 曲线 + 色温 + 颗粒），纯函数可单测，被 canvas 后端和未来原生 base64 后端共用。
+- `canvasFilterBackend` + `applyLutToImageUri`（`canvasBackend.ts`）：Web 端把成片加载进 canvas、逐像素套 LUT、写回 JPEG data URL；已接进 `capture()` 的 `prepareCapturedPhoto` 之后（经 `applyStyleFilterToPhoto`）。原生与无 canvas 环境安全透传原图。
+- fail-open：滤镜加载或处理失败一律返回原图 uri，绝不阻塞拍照；`applyStyleFilterToPhoto` 从 registry 取滤镜，第三方同 id 覆盖生效。
+- `styleFilter()` / `jsFilterBackend`：JS 后端入口；原生 GPU 后端（`modules/image-filter` shader）待接入同一 `FilterBackend` 接口。
 - LUT 数值预置：清透、奶杏、薄荷、胶片四套风格。
+
+### 应用更新完整性
+
+- `parseRelease` 从 GitHub Release 的 asset `digest`（`sha256:<64hex>`）提取 APK sha256，写入 `asset.sha256`；同时回填真实 `id`/`name`/`size`。
+- 非 APK asset、缺失或格式非法的 digest 一律保持 `sha256: null`，原生 `verifyPackage` 跳过哈希校验、降级为包名+构建版本检查。
+- 真机验收：Release 带 digest 时篡改 APK 应报“安装包校验失败”；Release 不带 digest 时仅跳过哈希、不报错。
 
 ### 端侧视觉检测器
 
