@@ -21,3 +21,32 @@
 - Instructions:
   - `CameraCapture.tsx` is an orchestration layer (~263 lines). Presentational seams live in sibling files: `CameraHeader`, `SceneModeRow`, `CameraViewfinder` (owns focal pill), `CameraParameterCard`, `CameraStyleStrip`, `CaptureDeck`. Each carries its own StyleSheet.
   - The `Parameter` type is canonically exported from `CameraParameterPanel.tsx` and re-used by `CameraParameterCard.tsx`.
+
+## Plugin / Filter Architecture
+
+[Filter backend layering]
+- Date: 2026-11-23
+- Context: Wired the LUT pixel backend into the capture pipeline
+- Category: Build Methods
+- Instructions:
+  - Pure LUT pixel math lives in `src/plugin/builtin/lutMath.ts` and is shared by the Web canvas backend and any future native base64 reader. This split exists to break a filters<->canvasBackend circular import.
+  - `canvasBackend.ts` is Web-only (`Platform.OS === 'web' && typeof document !== 'undefined'`). Native passes the uri through unchanged until the `modules/image-filter` GPU backend lands.
+  - Filter application is fail-open end to end: `applyLutToImageUri` and `applyStyleFilterToPhoto` both return the original uri on any error, so a filter failure never blocks a capture.
+  - `applyStyleFilterToPhoto` looks the filter up from `pluginRegistry` by id `filter-${style}`, so a third-party same-id registration overrides the built-in.
+
+[Guidance schema dual-source]
+- Date: 2026-11-23
+- Context: Added a schema consistency guard
+- Category: Build Methods
+- Instructions:
+  - The v3 guidance JSON Schema is hand-maintained in two copies: runtime `GUIDANCE_SCHEMA` (`src/constants/guidanceProtocol.ts`, also sent as the model's `outputSchema`) and `docs/camera-guidance-v3.schema.json`. `src/lib/__tests__/schemaConsistency.test.ts` deep-compares them; edit both together or the build fails.
+  - The prompt in `aiGuidance.ts` does NOT re-enumerate fields — it reuses `GUIDANCE_SCHEMA` via `outputSchema`, so there are only two schema copies to keep in sync, not three.
+
+[APK release integrity]
+- Date: 2026-11-23
+- Context: Closed the sha256 verification gap
+- Category: Operations & Deployment
+- Instructions:
+  - `parseRelease` (`src/lib/appRelease.ts`) extracts the APK sha256 from the GitHub Release asset `digest` field (format `sha256:<64 hex>`) into `asset.sha256`.
+  - APKs must be uploaded as real GitHub Release assets (not just external links) for GitHub to populate `digest`; otherwise `sha256` stays null and native `verifyPackage` skips hash validation.
+  - Non-APK assets and malformed digests keep `sha256` null, degrading gracefully to package-name + versionCode checks.
