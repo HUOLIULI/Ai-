@@ -7,7 +7,7 @@ import { colors, fonts, shadows } from '../../constants/theme';
 import { analyzePhotoQuality } from '../../lib/photoQualityGuard';
 import { editPhotoFromInstruction, applyNlEditToPhoto } from '../../lib/nlEdit';
 import { getActiveAIConfig } from '../../lib/aiConfig';
-import { canvasFilterBackend } from '../../plugin/builtin';
+import { defaultFilterBackend } from '../../plugin/builtin';
 import { IconButton } from '../ui/IconButton';
 import { PrimaryButton } from '../ui/PrimaryButton';
 
@@ -39,7 +39,7 @@ export function PhotoReview({ uri, onRetake, onSave, saving }: Props) {
     try {
       const config = await getActiveAIConfig();
       const edit = await editPhotoFromInstruction(config, text, editedUri ?? uri, new AbortController().signal);
-      const out = await applyNlEditToPhoto(editedUri ?? uri, edit, canvasFilterBackend);
+      const out = await applyNlEditToPhoto(editedUri ?? uri, edit, defaultFilterBackend());
       setEditedUri(out);
     } catch {
       setEditError('修图未生效，请检查 AI 配置或换一句指令。');

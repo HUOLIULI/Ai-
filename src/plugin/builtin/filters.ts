@@ -1,5 +1,7 @@
 import { LUTS } from './lut';
-import { applyLutToImageUri } from './canvasBackend';
+import { applyLutToImageUri as applyLutOnCanvas } from './canvasBackend';
+import { applyLutToImageUri as applyLutOnNative } from './nativeBackend';
+import { defaultFilterBackend } from './defaultBackend';
 import type { FilterBackend, FilterPlugin, LutSpec } from '../types';
 import type { CameraStyle } from '../../types/guidance';
 
@@ -31,18 +33,21 @@ export function lutFilter(lut: LutSpec): FilterPlugin {
     apply: async (backend, uri) => {
       if (!backend.available()) return uri;
       if (backend.kind === 'js') {
-        return applyLutToImageUri(uri, lut);
+        return applyLutOnCanvas(uri, lut);
       }
-      // GPU backend: hand off to the native module.
-      return uri;
+      // GPU backend: hand off to the native bitmap module (Android). Falls
+      // open to the original uri when the native module is unavailable.
+      return applyLutOnNative(uri, lut);
     },
   };
 }
 
-// Applies any LutSpec to a photo uri through the given backend. Fails open:
-// an unavailable backend or a thrown error returns the original uri so capture
-// never blocks on the filter.
-export async function applyLutSpecToPhoto(uri: string, lut: LutSpec, backend: FilterBackend = jsFilterBackend): Promise<string> {
+// Applies any LutSpec to a photo uri through the given backend. Defaults to
+// the platform-adaptive backend (native bitmap on Android, canvas on web) so a
+// capture renders wherever a backend exists. Fails open: an unavailable
+// backend or a thrown error returns the original uri so capture never blocks
+// on the filter.
+export async function applyLutSpecToPhoto(uri: string, lut: LutSpec, backend: FilterBackend = defaultFilterBackend()): Promise<string> {
   try {
     return await lutFilter(lut).apply(backend, uri);
   } catch {
