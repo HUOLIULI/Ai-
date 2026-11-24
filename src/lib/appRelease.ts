@@ -51,20 +51,36 @@ export function parseRelease(value: unknown, _supportedAbis: string[] = []): App
   const version = release.tag_name.trim().replace(/^v/i, '');
   const apkName = `v${version}.apk`;
   const downloadUrl = buildApkDownloadUrl(version);
-  const assetId = Math.max(1, parts[0] * 1_000_000 + parts[1] * 1_000 + parts[2]);
+  const apkAsset = findApkAsset(release.assets, apkName);
   return {
     version,
     title: typeof release.name === 'string' && release.name.trim() ? release.name.slice(0, 160) : `v${version}`,
     notes: typeof release.body === 'string' ? release.body.slice(0, 4000) : '',
     url: downloadUrl,
     asset: {
-      id: assetId,
+      id: typeof apkAsset?.id === 'number' ? apkAsset.id : Math.max(1, parts[0] * 1_000_000 + parts[1] * 1_000 + parts[2]),
       name: apkName,
-      size: 0,
+      size: typeof apkAsset?.size === 'number' ? apkAsset.size : 0,
       url: downloadUrl,
-      sha256: null,
+      sha256: extractSha256(apkAsset?.digest),
     },
   };
+}
+
+type GithubAsset = { id?: unknown; name?: unknown; size?: unknown; digest?: unknown };
+
+// Locate the APK asset matching this release's apkName in the GitHub assets list.
+function findApkAsset(value: unknown, apkName: string): GithubAsset | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.find(asset => (asset as GithubAsset)?.name === apkName) as GithubAsset | undefined;
+}
+
+// GitHub reports digests as "sha256:<64 hex>". Return the bare hex, or null when
+// the asset has no usable digest so the native verifier skips checksum validation.
+function extractSha256(digest: unknown): string | null {
+  if (typeof digest !== 'string') return null;
+  const match = /^sha256:([a-fA-F0-9]{64})$/.exec(digest.trim());
+  return match ? match[1] : null;
 }
 
 export async function fetchLatestRelease(signal: AbortSignal, supportedAbis: string[] = []): Promise<AppRelease | null> {
