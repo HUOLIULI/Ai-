@@ -15,7 +15,7 @@ type FaceBox = { x: number; y: number; w: number; h: number };
 
 type MlkitModule = {
   detectFaces: (uri: string) => Promise<{
-    faces: Array<{ frame: { x: number; y: number; width: number; height: number } }>;
+    faces: { frame: { x: number; y: number; width: number; height: number } }[];
     success: boolean;
     error: string | null;
   } | undefined>;

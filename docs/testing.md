@@ -48,3 +48,36 @@ npx tsc --noEmit
 点击“相机实时参数”右侧的“微调”，在底部面板选择参数并左右拨动实体风格的刻度滚轮，金色指针对应当前值，松手吸附档位并应用。触摸滚轮不跳值，可连续多次拨动，也可用两侧按钮逐格调整。变焦范围1–4倍，对比度范围0.80–1.20；白平衡和光圈按镜头支持的档位选择。固定光圈、缺少原生模块或不支持的参数显示为不可调整。手动应用后AI指导关闭，避免覆盖手动设置；需要时可重新开启。检查应用失败时仍显示上次成功值、应用期间不能拍照或切换镜头。
 
 本次新增modules/camera-tuning，需要重新构建Android开发包或APK，Expo Go不支持原生设置。检查本机支持的白平衡和对比度、设置失败不显示可拍、关闭指导后迟到回执不能亮起特效。可拍状态检查四角、中心环、快门、文字和短振动；系统减少动态效果时不做呼吸动画。原生代码尚需Android SDK编译和真机验收。
+
+## 插件架构验收
+
+摄影能力（模式、风格、滤镜、端侧检测器）由 `src/plugin` 的 `PluginRegistry` 统一注册。内置能力在 `src/plugin/builtin`，通过 `registerBuiltinPlugins()` 注册。CI 已包含 `tsc + eslint + jest` 三道质量门。
+
+### 自动化验证（本地或 CI）
+
+1. `npm run typecheck`（tsc strict 0 错误）。
+2. `npm run lint`（eslint 0 error）。
+3. `npm test`（jest 全绿，覆盖协议、执行、构图、插件运行时、滤镜、检测器）。
+
+### 插件运行时
+
+- `PluginRegistry` 注册/去重/按类型枚举（modes/styles/filters/detectors）。
+- 模式与风格插件的 prompt、preset、LUT 数值可被插件覆盖。
+- 第三方可在运行时 `registry.register(plugin)` 增加能力，无需改核心代码。
+
+### LUT 滤镜引擎
+
+- `applyLutToImageData`：像素级 RGBA LUT（3×3 矩阵 + 曲线 + 色温 + 颗粒），纯函数可单测。
+- `styleFilter()` 与 `jsFilterBackend`：对 `ImageData`（Web canvas）已生效；当前对图片 URI 透传（像素后端待接入 Web canvas/原生 base64/原生 GPU 同一接口）。
+- LUT 数值预置：清透、奶杏、薄荷、胶片四套风格。
+
+### 端侧视觉检测器
+
+- `sceneChangeDetector`：基于 base64 帧头采样做画面变化判断（阈值 0.3，真机需标定）。
+- `lightingDetector` + `analyzeFrame`：均值 < 40 判暗帧、高光 > 0.15 判过曝；JS 兜底仅解码 base64 前 4096 字符做亮度样本，真 RGBA 解码由原生后端替换。
+- `faceBoxDetector`（仅 Android，MLKit）：返回最大人脸归一化坐标；iOS/Web 安全 no-op。依赖 `@infinitered/react-native-mlkit-face-detection`。
+
+### 真机待办（本轮未完成）
+
+- 滤镜引擎像素后端接入 Web canvas / 原生 base64 / 原生 GPU（Android `modules/image-filter` shader）后，成片需真机比对四套风格的色偏、对比、颗粒强度。
+- `modules/image-filter` Android GPU 后端、`plugins/expo-drama` 对外插件、MLKit 真机人脸框精度，均需 Android SDK 编译与真机验证。

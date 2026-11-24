@@ -1,5 +1,5 @@
 import { PluginRegistry } from '../registry';
-import type { DramaPlugin, ModePlugin, StylePlugin, FilterPlugin, DetectorPlugin } from '../types';
+import type { ModePlugin, StylePlugin, FilterPlugin, DetectorPlugin } from '../types';
 
 function modePlugin(id: string, prompt = '测试模式'): ModePlugin {
   return { id, label: id, prompt };
