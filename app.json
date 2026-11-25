@@ -1,0 +1,65 @@
+{
+  "expo": {
+    "name": "Drama相机",
+    "slug": "warm-lens",
+    "version": "1.4.1",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "warm-lens",
+    "icon": "./assets/icon.png",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.warmlens.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Drama相机需要使用相机，实时给你温柔的构图提示。",
+        "NSPhotoLibraryAddUsageDescription": "Drama相机需要将你的照片保存到相册。",
+        "NSPhotoLibraryUsageDescription": "Drama相机需要读取本地相册，方便你回看作品。"
+      }
+    },
+    "android": {
+      "package": "com.warmlens.app",
+      "versionCode": 7,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#e5ce4d"
+      },
+      "permissions": [
+        "CAMERA",
+        "READ_MEDIA_IMAGES",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "允许Drama相机使用相机，实时给你温柔的构图提示。"
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "允许Drama相机读取你的相册。",
+          "savePhotosPermission": "允许Drama相机保存照片到相册。"
+        }
+      ],
+      "./plugins/expo-drama"
+    ],
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "df091c58-a474-4d21-bd84-97b173eb39b4"
+      }
+    },
+    "owner": "tommycui"
+  }
+}
